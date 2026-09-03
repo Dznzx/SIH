@@ -57,7 +57,9 @@ async function callGroq(question, contextDocs, history) {
       'authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      // llama-3.3-70b-versatile was deprecated by Groq; this is their
+      // recommended replacement model.
+      model: 'openai/gpt-oss-120b',
       max_tokens: 300,
       messages
     })
