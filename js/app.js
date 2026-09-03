@@ -36,14 +36,35 @@ function applyRoleUI(){
 
   const officerId = document.getElementById('dashOfficerId');
   if(officerId) officerId.textContent = isOfficer ? `${currentUser.name} · ${currentUser.department}` : '';
+
+  // Stakeholder-specific dashboards (faculty endorsement queue, industry CSR
+  // portal, NGO fieldwork, mentor queue, admin panel) only make sense for
+  // the matching role — everyone else never even sees the nav link.
+  document.querySelectorAll('.role-only').forEach(el=>{
+    el.style.display = (el.dataset.forrole === currentUser.role) ? '' : 'none';
+  });
 }
 applyRoleUI();
 
+// Roles with their own dedicated landing dashboard, rather than the
+// citizen home screen, once signed in.
+const ROLE_LANDING_VIEW = { faculty: 'faculty', industry: 'industry', ngo: 'ngo', mentor: 'mentor', admin: 'admin' };
 function saveUser(u){
   currentUser = u;
   localStorage.setItem(USER_KEY, JSON.stringify(u));
   applyRoleUI();
-  setMode(isOfficerRole(u.role) ? 'dash' : 'citizen');
+  // initTeamBuilder() also ran once at DOMContentLoaded, before anyone had
+  // signed in, so its .student-only nav toggle needs re-running now that
+  // currentUser is actually set — otherwise Team Builder is never reachable.
+  if(typeof initTeamBuilder==='function') initTeamBuilder();
+  if(isOfficerRole(u.role) && u.role !== 'admin'){
+    setMode('dash');
+  } else if(ROLE_LANDING_VIEW[u.role]){
+    setMode('citizen');
+    goto(ROLE_LANDING_VIEW[u.role]);
+  } else {
+    setMode('citizen');
+  }
 }
 document.getElementById('signOutBtn')?.addEventListener('click', ()=>{
   currentUser = null;
@@ -75,7 +96,7 @@ document.getElementById('authSubmit')?.addEventListener('click', ()=>{
   }
   errorEl.style.display = 'none';
   const user = { role, name };
-  if(university) user.university = university;
+  if(university){ user.university = university; user.uni = university; } // teambuilder.js reads currentUser.uni
   if(isOfficerRole(role)) user.department = CIVIC.departments ? Object.values(CIVIC.departments)[0] : 'General';
   saveUser(user);
 });
@@ -391,6 +412,11 @@ document.querySelectorAll('.navlinks a').forEach(a=>{
   a.addEventListener('click', ()=>{
     if(a.dataset.view==='track'){ openTrack(currentTrack || CIVIC.reports[0]); }
     else { goto(a.dataset.view); }
+    // These two screens read live localStorage state (teams, escalated
+    // challenges) that can change elsewhere in the same session, so
+    // refresh them on every visit rather than only at page load.
+    if(a.dataset.view==='teambuilder' && typeof renderChallenges==='function') renderChallenges();
+    if(a.dataset.view==='policy' && typeof renderInstitutionalParticipation==='function') renderInstitutionalParticipation();
   });
 });
 document.getElementById('topReportBtn').addEventListener('click', ()=>goto('home'));

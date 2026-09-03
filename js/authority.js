@@ -93,6 +93,9 @@ function slaCountdownText(r){
   const ms = new Date(r.slaDeadline) - Date.now();
   return ms<=0 ? `BREACHED · ${formatDuration(-ms)} over` : `${formatDuration(ms)} left`;
 }
+function isEscalatedToChallenge(reportId){
+  return getExtraChallenges().some(c => c.sourceReportId === reportId);
+}
 function renderQueue(highlightId){
   queueList.innerHTML = '';
   const rows = CIVIC.reports
@@ -124,6 +127,7 @@ function renderQueue(highlightId){
           <button class="why">${tc('Why this rank?', 'यह रैंक क्यों?')}</button>
           <button class="assign${r.assignee ? ' done' : ''}" ${r.assignee ? 'disabled' : ''}>${r.assignee ? tc('Assigned ✓', 'सौंपा ✓') : tc('Assign', 'सौंपें')}</button>
           <button class="closeit">${tc('Close', 'बंद करें')}</button>
+          <button class="escalate-challenge${isEscalatedToChallenge(r.id) ? ' done' : ''}" ${isEscalatedToChallenge(r.id) ? 'disabled' : ''} title="Turn this into a university research challenge">${isEscalatedToChallenge(r.id) ? '🎓 In Team Builder ✓' : '🎓 Escalate to Challenge'}</button>
         </div>
         <div class="why-panel">${whyPanelHtml(r)}</div>`;
     }
@@ -332,6 +336,14 @@ queueList.addEventListener('click', (e)=>{
     // Step 8c: prompt for a proof photo before resolving.
     reportPendingResolve = report;
     resolvePhotoInput.click();
+  }
+  if(e.target.classList.contains('escalate-challenge') && !isEscalatedToChallenge(report.id)){
+    const challenge = createChallengeFromReport(report);
+    if(challenge){
+      pushNotification('🎓', `${report.id} escalated to Team Builder as a university challenge: "${challenge.title}"`);
+      showToast(`🎓 Created university challenge from ${report.id} — visible in Team Builder`, 4000);
+      renderQueue();
+    }
   }
 });
 

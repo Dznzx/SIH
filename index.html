@@ -17,8 +17,15 @@
 <div class="auth-gate" id="authGate">
   <div class="auth-card">
     <div class="auth-badge">⚠ Prototype sign-in — demo only</div>
-    <div style="text-align:center; margin-bottom:16px; height:100px; display:flex; justify-content:center; align-items:center;">
-      <img src="assets/logo.jpg" alt="CivicSetu Logo" style="max-height:100px; width:auto; object-fit:contain; mix-blend-mode:multiply;">
+    <div style="text-align:center; margin-bottom:16px; height:100px; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:6px;">
+      <svg width="52" height="52" viewBox="0 0 52 52" aria-label="CivicSetu Logo" role="img">
+        <circle cx="26" cy="26" r="24" fill="#e4f4ea"/>
+        <path d="M10 30 Q18 16 26 30 T42 30" stroke="#1f7a4d" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <circle cx="10" cy="30" r="4" fill="#1f7a4d"/>
+        <circle cx="42" cy="30" r="4" fill="#c9922b"/>
+        <circle cx="26" cy="30" r="3.5" fill="#155e3a"/>
+      </svg>
+      <div style="font-weight:800; font-size:19px; color:#155e3a; letter-spacing:-.02em;">CivicSetu</div>
     </div>
     <label for="authRoleSelect">Select your role</label>
     <select id="authRoleSelect" style="width:100%; padding:10px; margin-bottom:12px; border:1px solid var(--line); border-radius:6px; font-family:var(--font);">
@@ -49,14 +56,26 @@
 
 <div class="app">
   <div class="topbar">
-    <div class="brand" style="height:48px; display:flex; align-items:center; flex-shrink:0;">
-      <img src="assets/logo.jpg" alt="CivicSetu Logo" style="height:44px; width:auto; max-width:180px; object-fit:contain; mix-blend-mode:multiply;">
+    <div class="brand" style="height:48px; display:flex; align-items:center; gap:9px; flex-shrink:0;">
+      <svg width="32" height="32" viewBox="0 0 52 52" aria-label="CivicSetu Logo" role="img">
+        <circle cx="26" cy="26" r="24" fill="#e4f4ea"/>
+        <path d="M10 30 Q18 16 26 30 T42 30" stroke="#1f7a4d" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <circle cx="10" cy="30" r="4" fill="#1f7a4d"/>
+        <circle cx="42" cy="30" r="4" fill="#c9922b"/>
+        <circle cx="26" cy="30" r="3.5" fill="#155e3a"/>
+      </svg>
+      <span style="font-weight:800; font-size:18px; color:#155e3a; letter-spacing:-.02em;">CivicSetu</span>
     </div>
     <div class="navlinks" id="navlinks">
       <a data-view="home" class="active"><span class="n-ico">🏠</span> <span class="n-lbl" data-i18n="nav_home">Home</span></a>
       <a data-view="resolved"><span class="n-ico">✅</span> <span class="n-lbl" data-i18n="nav_resolved">Completed Projects</span></a>
       <a data-view="portfolio"><span class="n-ico">🏆</span> <span class="n-lbl" data-i18n="nav_portfolio">Portfolio</span></a>
       <a data-view="teambuilder" class="student-only" style="display:none;"><span class="n-ico">🤝</span> <span class="n-lbl" data-i18n="nav_teambuilder">Team Builder</span></a>
+      <a data-view="faculty" class="role-only" data-forrole="faculty" style="display:none;"><span class="n-ico">🎓</span> <span class="n-lbl">Faculty Review</span></a>
+      <a data-view="industry" class="role-only" data-forrole="industry" style="display:none;"><span class="n-ico">🏭</span> <span class="n-lbl">Industry Portal</span></a>
+      <a data-view="ngo" class="role-only" data-forrole="ngo" style="display:none;"><span class="n-ico">🤲</span> <span class="n-lbl">NGO Drives</span></a>
+      <a data-view="mentor" class="role-only" data-forrole="mentor" style="display:none;"><span class="n-ico">💡</span> <span class="n-lbl">Mentor Queue</span></a>
+      <a data-view="admin" class="role-only" data-forrole="admin" style="display:none;"><span class="n-ico">⚙️</span> <span class="n-lbl">Admin Panel</span></a>
       <a data-view="investor"><span class="n-ico">💼</span> <span class="n-lbl" data-i18n="nav_investor">Investor Connect</span></a>
       <a data-view="policy"><span class="n-ico">📜</span> <span class="n-lbl" data-i18n="nav_policy">Policy Insights</span></a>
     </div>
@@ -161,7 +180,39 @@
         </div>
       </div>
       <div style="flex:1; display:flex; justify-content:center; align-items:center;">
-        <img src="assets/hero_community.jpg" alt="Community Working Together" style="max-width:100%; max-height:350px; border-radius:24px; box-shadow:0 12px 24px rgba(0,0,0,0.15); object-fit:cover;">
+        <svg width="360" height="300" viewBox="0 0 360 300" role="img" aria-label="Citizens, universities and industry connected through CivicSetu" style="max-width:100%; height:auto; border-radius:24px; box-shadow:0 12px 24px rgba(0,0,0,0.15);">
+          <defs>
+            <linearGradient id="heroSky" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#eef7f0"/>
+              <stop offset="100%" stop-color="#dcefe2"/>
+            </linearGradient>
+          </defs>
+          <rect width="360" height="300" rx="24" fill="url(#heroSky)"/>
+          <circle cx="180" cy="150" r="58" fill="#ffffff" stroke="#1f7a4d" stroke-width="2.5"/>
+          <text x="180" y="157" text-anchor="middle" font-size="26" font-family="sans-serif">🏛️</text>
+          <g stroke="#1f7a4d" stroke-width="2.5" stroke-dasharray="1 8" stroke-linecap="round">
+            <line x1="180" y1="92" x2="90" y2="55"/>
+            <line x1="180" y1="92" x2="270" y2="55"/>
+            <line x1="238" y1="150" x2="310" y2="150"/>
+            <line x1="122" y1="150" x2="50" y2="150"/>
+            <line x1="180" y1="208" x2="120" y2="255"/>
+            <line x1="180" y1="208" x2="240" y2="255"/>
+          </g>
+          <g font-family="sans-serif">
+            <circle cx="90" cy="45" r="26" fill="#fff" stroke="#c9922b" stroke-width="2"/>
+            <text x="90" y="53" text-anchor="middle" font-size="22">🎓</text>
+            <circle cx="270" cy="45" r="26" fill="#fff" stroke="#c9922b" stroke-width="2"/>
+            <text x="270" y="53" text-anchor="middle" font-size="22">🏭</text>
+            <circle cx="326" cy="150" r="26" fill="#fff" stroke="#c9922b" stroke-width="2"/>
+            <text x="326" y="158" text-anchor="middle" font-size="22">💼</text>
+            <circle cx="34" cy="150" r="26" fill="#fff" stroke="#c9922b" stroke-width="2"/>
+            <text x="34" y="158" text-anchor="middle" font-size="22">🙋</text>
+            <circle cx="118" cy="265" r="26" fill="#fff" stroke="#c9922b" stroke-width="2"/>
+            <text x="118" y="273" text-anchor="middle" font-size="22">🤝</text>
+            <circle cx="254" cy="265" r="26" fill="#fff" stroke="#c9922b" stroke-width="2"/>
+            <text x="254" y="273" text-anchor="middle" font-size="22">🤲</text>
+          </g>
+        </svg>
       </div>
     </div>
 
@@ -668,6 +719,14 @@
       </div>
     </div>
 
+    <!-- Partner Type Filters -->
+    <div class="inv-filter-bar">
+      <span class="inv-filter-label">Filter Partner Type:</span>
+      <button class="fchip active" data-invtype="all" onclick="filterInvestorType('all')">All Partners</button>
+      <button class="fchip" data-invtype="Investor / VC" onclick="filterInvestorType('Investor / VC')">💰 Investor / VC</button>
+      <button class="fchip" data-invtype="MSME" onclick="filterInvestorType('MSME')">🏗️ MSME</button>
+      <button class="fchip" data-invtype="Research Lab" onclick="filterInvestorType('Research Lab')">🔬 Research Lab</button>
+    </div>
     <!-- Domain Filters -->
     <div class="inv-filter-bar">
       <span class="inv-filter-label" data-i18n="inv_domain_filter">Filter Domain:</span>
@@ -751,6 +810,10 @@
       <button class="fchip" data-polministry="MoEFCC" onclick="filterPolicyMinistry('MoEFCC')">🌱 MoEFCC (Environment & Waste)</button>
       <button class="fchip" data-polministry="MNRE" onclick="filterPolicyMinistry('MNRE')">⚡ MNRE / Power (Energy)</button>
     </div>
+
+    <!-- Institutional Participation: how much of the citizen -> university ->
+         industry pipeline SIH26043 asks for is actually active -->
+    <div class="kpi-row" id="institutionalParticipationRow" style="margin-bottom:20px;"></div>
 
     <!-- Societal Pain Point Concentration Matrix -->
     <div class="card pol-matrix-card" style="margin-bottom:24px;">
@@ -899,5 +962,6 @@
 <script src="js/investor.js?v=12"></script>
 <script src="js/policy.js?v=12"></script>
 <script src="js/badges.js?v=12"></script>
+<script src="js/chatbot.js?v=12"></script>
 </body>
 </html>
