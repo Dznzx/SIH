@@ -1,5 +1,15 @@
 // Investor Connect Portal Logic
 let activeInvestorDomainFilter = 'all';
+let activeInvestorTypeFilter = 'all';
+
+// Filter Investors by Partner Type (Investor/VC, MSME, Research Lab)
+function filterInvestorType(type) {
+  activeInvestorTypeFilter = type;
+  document.querySelectorAll('.inv-filter-bar .fchip[data-invtype]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.invtype === type);
+  });
+  renderInvestors();
+}
 
 // Initialize Investor Portal
 function initInvestorPortal() {
@@ -73,7 +83,7 @@ function renderInvestorPreferences() {
 // Filter Investors by Domain
 function filterInvestorDomain(domain) {
   activeInvestorDomainFilter = domain;
-  document.querySelectorAll('.inv-filter-bar .fchip').forEach(btn => {
+  document.querySelectorAll('.inv-filter-bar .fchip[data-invdomain]').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.invdomain === domain);
   });
   renderInvestors();
@@ -91,13 +101,17 @@ function renderInvestors() {
   if (activeInvestorDomainFilter !== 'all') {
     investors = investors.filter(inv => inv.domains.includes(activeInvestorDomainFilter));
   }
+  // Filter by partner type (Investor/VC, MSME, Research Lab)
+  if (activeInvestorTypeFilter !== 'all') {
+    investors = investors.filter(inv => (inv.type || 'Investor / VC') === activeInvestorTypeFilter);
+  }
 
   if (countBadge) {
-    countBadge.textContent = `${investors.length} Investor${investors.length !== 1 ? 's' : ''}`;
+    countBadge.textContent = `${investors.length} Partner${investors.length !== 1 ? 's' : ''}`;
   }
 
   if (investors.length === 0) {
-    grid.innerHTML = `<div class="inv-empty">No registered investors found for this domain filter.</div>`;
+    grid.innerHTML = `<div class="inv-empty">No registered partners found for this filter.</div>`;
     return;
   }
 
@@ -115,7 +129,8 @@ function renderInvestors() {
           <div>
             <div class="inv-name-row">
               <h3 class="inv-name">${inv.name}</h3>
-              ${inv.verified ? '<span class="inv-verified" title="Verified Investor">✓ Verified</span>' : ''}
+              ${inv.verified ? '<span class="inv-verified" title="Verified">✓ Verified</span>' : ''}
+              <span class="inv-type-pill">${inv.type || 'Investor / VC'}</span>
             </div>
             <div class="inv-firm">${inv.role} · <strong>${inv.firm}</strong></div>
           </div>

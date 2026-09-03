@@ -24,6 +24,18 @@ const CIVIC = {
   // hours until SLA breach, by category
   slaHours: { Pothole: 72, Garbage: 24, Streetlight: 48, Handpump: 24, Drainage: 48 },
 
+  // Maps each civic-report category to the broader societal-challenge domain
+  // SIH26043 asks for (education/healthcare/agriculture/water/energy/etc.),
+  // so a citizen's pothole photo and a university's research discipline can
+  // be talked about in the same vocabulary.
+  domains: {
+    Pothole:     'Urban Infrastructure',
+    Garbage:     'Sanitation & Environment',
+    Streetlight: 'Energy & Urban Infrastructure',
+    Handpump:    'Water Resources',
+    Drainage:    'Water Resources & Urban Infrastructure'
+  },
+
   // Proximity multiplier applied when an issue sits near sensitive infrastructure.
   proximityWeights: { school: 1.25, hospital: 1.30, busStop: 1.10, none: 1.0 },
 
@@ -175,6 +187,7 @@ const CIVIC = {
       name: 'Ananya Sharma',
       firm: 'Surge / Peak XV Partners',
       role: 'Partner & Lead Investor',
+      type: 'Investor / VC',
       domains: ['Smart Water Management', 'Clean Energy', 'AI for Governance'],
       ticketSize: '₹25L – ₹1Cr',
       stage: 'Seed / Pre-Seed',
@@ -183,10 +196,50 @@ const CIVIC = {
       verified: true
     },
     {
+      id: 'msme_1',
+      name: 'Jharkhand Precision Fabricators Pvt. Ltd.',
+      firm: 'MSME · IoT Hardware Manufacturing',
+      role: 'Deployment & Manufacturing Partner',
+      type: 'MSME',
+      domains: ['Smart Water Management', 'Clean Energy', 'Waste Management'],
+      ticketSize: 'In-kind fabrication + pilot deployment',
+      stage: 'Prototype to Pilot',
+      bio: 'Ranchi-based MSME that manufactures and field-deploys low-cost IoT sensor enclosures for municipal bodies; can take a university prototype to a 50-unit pilot in 6 weeks.',
+      location: 'Ranchi, Jharkhand',
+      verified: true
+    },
+    {
+      id: 'msme_2',
+      name: 'Sahyog Rural Tech Solutions',
+      firm: 'MSME · Rural Water & Sanitation Systems',
+      role: 'Field Implementation Partner',
+      type: 'MSME',
+      domains: ['Smart Water Management', 'Waste Management'],
+      ticketSize: 'In-kind installation + local workforce',
+      stage: 'Pilot / Scale-up',
+      bio: 'Installs and maintains handpump and drainage retrofit hardware across rural Jharkhand wards; the on-ground partner for last-mile deployment of university solutions.',
+      location: 'Hazaribagh, Jharkhand',
+      verified: true
+    },
+    {
+      id: 'lab_1',
+      name: 'Centre for Disaster & Civic Resilience, BIT Mesra',
+      firm: 'University Research Lab',
+      role: 'Research & Mentorship Partner',
+      type: 'Research Lab',
+      domains: ['Civic Mobility', 'Smart Water Management', 'AI for Governance'],
+      ticketSize: 'Mentorship + lab access, no funding',
+      stage: 'Any stage',
+      bio: 'Provides faculty mentorship, lab equipment, and academic validation for student teams working on infrastructure-resilience and civic-AI problems.',
+      location: 'Ranchi, Jharkhand',
+      verified: true
+    },
+    {
       id: 'inv_2',
       name: 'Rohan Mehta',
       firm: 'CleanTech Angels India',
       role: 'Angel Investor & Advisor',
+      type: 'Investor / VC',
       domains: ['Waste Management', 'Clean Energy', 'Civic Mobility'],
       ticketSize: '₹10L – ₹35L',
       stage: 'Pre-Seed / Prototype Grant',
@@ -199,6 +252,7 @@ const CIVIC = {
       name: 'Dr. Meera Nair',
       firm: 'Bharat Impact Innovation Fund',
       role: 'Managing Director',
+      type: 'Investor / VC',
       domains: ['Smart Water Management', 'Waste Management', 'AI for Governance'],
       ticketSize: '₹50L – ₹2Cr',
       stage: 'Seed / Series A',
@@ -211,6 +265,7 @@ const CIVIC = {
       name: 'Vikramaditya Rao',
       firm: 'Urban Infra Accelerator VC',
       role: 'Principal Investor',
+      type: 'Investor / VC',
       domains: ['Civic Mobility', 'Smart Water Management', 'Clean Energy'],
       ticketSize: '₹15L – ₹50L',
       stage: 'Prototype to Pilot Grant',
@@ -352,6 +407,50 @@ const CIVIC = {
   ]
 };
 
+/* ---------- Citizen report -> university challenge bridge ----------
+   This is the mechanic SIH26043 actually asks for: a societal problem a
+   citizen reports must be routable to a university team for solving, not
+   just to a municipal officer. CIVIC.challenges above are the seed/demo
+   challenges; escalated ones (created from a real report in the Authority
+   dashboard) are layered on top from localStorage so they survive reloads
+   without needing a backend. getAllChallenges() is what every screen
+   (Team Builder, Policy Insights participation stats) should read from —
+   never read CIVIC.challenges directly once a report has been escalated. */
+const EXTRA_CHALLENGES_KEY = 'civic_extra_challenges';
+function getExtraChallenges(){
+  try{ return JSON.parse(localStorage.getItem(EXTRA_CHALLENGES_KEY) || '[]'); }
+  catch(e){ return []; }
+}
+function saveExtraChallenges(list){
+  localStorage.setItem(EXTRA_CHALLENGES_KEY, JSON.stringify(list));
+}
+function getAllChallenges(){
+  return CIVIC.challenges.concat(getExtraChallenges());
+}
+// Turns a citizen's report into a university-facing challenge. Returns the
+// new challenge, or null if this report was already escalated.
+function createChallengeFromReport(report){
+  const extra = getExtraChallenges();
+  if(extra.some(c => c.sourceReportId === report.id)) return null;
+  const domain = CIVIC.domains[report.category] || 'Urban Infrastructure';
+  const deadline = new Date(Date.now() + 45*24*3600*1000).toISOString();
+  const challenge = {
+    id: 'CH-RPT-' + report.id,
+    title: `${report.category} distress: ${report.title}`,
+    description: `Citizen-reported problem in ${wardInfo(report.ward).name} (severity ${report.severity.toFixed(2)}, ${report.confirms} confirmations). Needs a scalable, deployable solution — not a one-off repair.`,
+    domain,
+    deadline,
+    teamSizeLimit: 4,
+    roleSlots: { 'Research Lead': 1, 'Engineer': 2, 'Domain Expert': 1 },
+    sourceReportId: report.id,
+    sourceWard: report.ward,
+    createdAt: new Date().toISOString()
+  };
+  extra.push(challenge);
+  saveExtraChallenges(extra);
+  return challenge;
+}
+
 /* Re-anchor the seed timestamps above to "now".
    Every submittedAt/slaDeadline/resolvedAt/timeline/comment date above was
    authored relative to 2026-08-26T11:20:00 (CS-2026-8862, the most recent
@@ -379,3 +478,31 @@ const CIVIC = {
     (r.comments||[]).forEach(c=>{ if(c.at) c.at = shift(c.at); });
   });
 })();
+
+/* ---------- Reports: shared Supabase backend, not a local seed array ----------
+   Everything above is a local fallback so the demo still renders instantly
+   and works offline. As soon as Supabase answers, its rows become
+   authoritative (merged in by id — a Supabase row overwrites a local seed
+   row with the same id, and any row Supabase has that isn't in the local
+   seed is a real report from another user/browser and gets added). A
+   realtime subscription re-runs this merge on every insert/update from
+   ANY client, which is what makes a citizen's report show up on an
+   already-open Authority dashboard without a refresh. */
+async function bootstrapReportsFromSupabase(){
+  if(typeof SB === 'undefined' || !SB.client) return;
+  try{
+    const rows = await SB.listReports();
+    if(!rows) return; // fetch failed (offline, RLS, etc.) — keep local fallback data
+    const byId = new Map(CIVIC.reports.map(r=>[r.id, r]));
+    rows.forEach(row => byId.set(row.id, row));
+    CIVIC.reports.length = 0;
+    CIVIC.reports.push(...Array.from(byId.values()));
+    window.dispatchEvent(new CustomEvent('civic:reportsUpdated'));
+  } catch(e){
+    console.error('Supabase reports bootstrap failed:', e);
+  }
+}
+bootstrapReportsFromSupabase();
+if(typeof SB !== 'undefined' && SB.client){
+  SB.subscribeReports(() => bootstrapReportsFromSupabase());
+}

@@ -175,6 +175,11 @@ submitBtn.addEventListener('click', ()=>{
     renderQueue();
     showToast(`Confirmed existing issue ${dupeAnchor.id} — now ${dupeAnchor.confirms} confirmations`, 2200);
     pushNotification('🔁', `Confirmed existing issue ${dupeAnchor.id} — now ${dupeAnchor.confirms} confirmations`);
+    if(typeof SB !== 'undefined' && SB.client){
+      SB.updateReport(dupeAnchor.id, { confirms: dupeAnchor.confirms }).then(ok=>{
+        if(!ok) console.error('Failed to sync confirmation count to Supabase:', dupeAnchor.id);
+      });
+    }
     setTimeout(resetCaptureForm, 900);
     return;
   }
@@ -227,6 +232,15 @@ submitBtn.addEventListener('click', ()=>{
       // Authority ranked queue — highlight the new arrival for a few seconds.
       renderQueue(newReport.id);
       pushNotification(icons[catSelected] || '📍', `Report submitted: ${newReport.title}`);
+
+      // Persist to the shared Supabase backend so this report is visible to
+      // every other signed-in user (e.g. an officer's Authority dashboard on
+      // a different device), not just this browser's own localStorage.
+      if(typeof SB !== 'undefined' && SB.client){
+        SB.insertReport(newReport).then(ok=>{
+          if(!ok) console.error('Report saved locally but failed to sync to Supabase:', newReport.id);
+        });
+      }
     } else {
       // Not yet visible to the authority side — it only arrives once synced.
       persistOfflineQueue();
@@ -334,6 +348,54 @@ function updateReportCounts(){
     summary[2].textContent = counts.fixed;
   }
 }
+// "Completed Projects" — a before/after gallery of resolved reports. The
+// container (#resolvedGallery) existed in the HTML with full CSS already
+// written for it, but nothing ever populated it, so the nav item silently
+// showed an empty page.
+function renderResolvedGallery(){
+  const grid = document.getElementById('resolvedGallery');
+  if(!grid) return;
+  const resolved = CIVIC.reports.filter(r=>r.status==='resolved');
+  if(resolved.length===0){
+    grid.innerHTML = `<div class="inv-empty">No completed projects yet — resolved reports will appear here.</div>`;
+    return;
+  }
+  grid.innerHTML = resolved.map(r=>{
+    const ward = wardInfo(r.ward);
+    const days = r.resolvedAt ? Math.max(0, Math.round((new Date(r.resolvedAt) - new Date(r.submittedAt)) / 86400000)) : null;
+    const splitHtml = r.photo && r.proofPhoto ? `
+      <div class="b-a-split">
+        <div class="b-a-box"><img src="${r.photo}" alt="Before" loading="lazy"><span class="b-a-label">Before</span></div>
+        <div class="b-a-box"><img src="${r.proofPhoto}" alt="After" loading="lazy"><span class="b-a-label">After</span></div>
+      </div>` : `
+      <div class="b-a-split"><div class="ba-empty"><span>📷</span><span>No before/after photo</span></div></div>`;
+    return `
+      <div class="resolved-card">
+        ${splitHtml}
+        <div class="resolved-card-body">
+          <div class="resolved-card-head">
+            <div>
+              <h4 class="resolved-card-title">${r.title}</h4>
+              <div class="resolved-card-meta">📍 ${ward.name} · ${r.category}</div>
+            </div>
+            <span class="resolved-card-badge">Resolved</span>
+          </div>
+          <div class="resolved-card-stats">
+            <div class="resolved-stat-item"><span class="resolved-stat-val">${days!=null ? days+'d' : '—'}</span><span class="resolved-stat-key">Time to fix</span></div>
+            <div class="resolved-stat-item"><span class="resolved-stat-val">${r.severity.toFixed(2)}</span><span class="resolved-stat-key">Severity</span></div>
+            <div class="resolved-stat-item"><span class="resolved-stat-val">${r.confirms}</span><span class="resolved-stat-key">Confirms</span></div>
+          </div>
+          ${r.assignee ? `
+          <div class="resolved-assignee">
+            <span class="resolved-assignee-avatar">🛠️</span>
+            <span>Fixed by ${r.assignee}</span>
+          </div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+renderResolvedGallery();
+
 renderReports('all');
 document.getElementById('filterRow').addEventListener('click', (e)=>{
   const chip = e.target.closest('.fchip');

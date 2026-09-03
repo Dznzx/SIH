@@ -1,0 +1,55 @@
+[
+  {
+    "id": "ps-overview",
+    "text": "CivicSetu is a prototype built for Smart India Hackathon problem statement SIH26043 from the Government of Jharkhand: 'A digital platform to crowdsource societal challenges and facilitate collaborative problem solving through universities and industry partnerships.' The platform lets citizens, community organizations and government agencies submit societal problems (education, healthcare, agriculture, water, sanitation, energy, urban infrastructure, accessibility, public service delivery), routes validated problems to universities matching their academic disciplines, lets university teams form and propose solutions, and connects those teams with industry, MSMEs, investors and research labs for mentorship, funding and deployment."
+  },
+  {
+    "id": "citizen-flow",
+    "text": "Citizens report civic issues (pothole, garbage, streetlight, handpump, drainage) with a photo, GPS location, and category. An on-device MobileNet model suggests a category from the photo. Duplicate reports near an existing pin are detected automatically (DBSCAN clustering) and the citizen is asked to confirm the existing report instead of filing a new one. Every report gets a 4-step timeline: Report Submitted, Assigned to Officer, Work in Progress, Issue Resolved, plus a live SLA countdown."
+  },
+  {
+    "id": "authority-flow",
+    "text": "Government/authority users (role: government, or the legacy officer/admin roles) see the Authority Dashboard: a ranked queue of open reports ordered by an explainable priority score (severity x proximity weight, + confirmations, + SLA urgency, + an optional equity-correction bonus for historically under-reported wards), a ward heatmap, an SLA tab for breached reports, and a Resolved tab. Officers can Assign a report to a department, Close it with a proof photo, or Escalate it to Challenge — which turns the citizen's report into a university research challenge visible in Team Builder, tagged with a societal domain (Urban Infrastructure, Water Resources, Sanitation & Environment, Energy & Urban Infrastructure)."
+  },
+  {
+    "id": "teambuilder-flow",
+    "text": "Team Builder is where student and faculty users see open challenges — both curated hackathon challenges and ones auto-created from real citizen reports via the Authority Dashboard's Escalate to Challenge button. Students form or join teams against fixed role slots (e.g. Research Lead, Engineer, Domain Expert) for a challenge, with a max team size and a cross-university roster showing each member's university."
+  },
+  {
+    "id": "faculty-flow",
+    "text": "Faculty users land on the Faculty Endorsement & Credit Dashboard, where they review student team solutions, endorse verified prototypes, and can award academic credit. This is the 'university evaluation' step the SIH26043 problem statement calls for."
+  },
+  {
+    "id": "industry-investor-flow",
+    "text": "Industry, MSME, and investor stakeholders connect via two screens: the Industry Adoption & CSR Portal (fund pilots, sponsor prototypes, CSR budget) and Investor Connect (browse registered investors, MSMEs and university research labs filtered by domain and funding stage, and request a pitch introduction for a shortlisted student solution). MSMEs are the manufacturing/field-deployment partners that take a university prototype to a real pilot; research labs provide mentorship and lab access without funding."
+  },
+  {
+    "id": "ngo-mentor-admin",
+    "text": "NGO users see a Fieldwork & Community Drive portal to mobilize volunteers against ward grievances. Mentor users see an assigned mentorship queue to review student team technical architecture. Admin users see a Platform Administration panel with system health (ML pipeline status, DBSCAN clustering engine, investor matchmaker) and can also access the Authority Dashboard toggle.",
+    "aliasKeywords": "ngo mentor admin platform administration"
+  },
+  {
+    "id": "policy-flow",
+    "text": "Policy Insights is a government-facing analytics view: a Societal Pain Point Concentration Matrix per ward (open issues, high-severity count, SLA breach count, a 0-100 distress density index, and an equity-gap flag for under-reported wards), plus formal, exportable Policy Brief documents per ministry (MoHUA roads, Jal Shakti water, MoEFCC waste, MNRE energy) with executive summaries, evidence metrics, and mandatory policy directives."
+  },
+  {
+    "id": "portfolio-badges",
+    "text": "Every user has a gamified Portfolio page: a reputation score, a level (Rookie to Legend), and counters for problems solved, teams led, papers published, prototypes built. Badges unlock automatically for actions like leading a team or requesting an investor introduction."
+  },
+  {
+    "id": "wards",
+    "text": "The demo covers 4 wards of Ranchi, Jharkhand: Hatia (W12, population 48000), Doranda (W07, population 39000), Kanke (W04, population 52000, flagged as under-reported), and Bariatu (W19, population 31000)."
+  },
+  {
+    "id": "departments",
+    "text": "Civic report categories route to municipal departments: Pothole to PWD - Roads Division, Garbage to Solid Waste Management Cell, Streetlight to Electrical Maintenance Wing, Handpump to Public Health Engineering Dept, Drainage to Drainage & Sewerage Division."
+  },
+  {
+    "id": "sign-in",
+    "text": "This is a prototype, client-side-only sign-in with no real backend — pick any role from the dropdown (Student, Faculty, Industry Partner, Government Body, NGO, Mentor, Angel Investor / VC, Platform Admin), enter any name, and use passcode 1234."
+  },
+  {
+    "id": "tech-notes",
+    "text": "CivicSetu is a static HTML/CSS/JavaScript app (no framework, no backend database) deployed on Vercel, using localStorage to persist teams, portfolio, badges, investor intros and escalated challenges between visits. The photo category suggestion runs a self-hosted MobileNet v1 TensorFlow.js model entirely in the browser for an offline-first design. This chatbot is the one part of the app with a real backend: a Vercel serverless function that retrieves the most relevant paragraphs from this knowledge base and asks an LLM to answer using them."
+  }
+]

@@ -3,7 +3,7 @@ let selectedChallengeId = null;
 
 // Initialize Team Builder
 function initTeamBuilder() {
-  if (currentUser && currentUser.role === 'student') {
+  if (currentUser && (currentUser.role === 'student' || currentUser.role === 'faculty')) {
     document.querySelectorAll('.student-only').forEach(el => el.style.display = 'flex');
     renderChallenges();
   }
@@ -26,11 +26,11 @@ function renderChallenges() {
   if (!listEl) return;
   listEl.innerHTML = '';
 
-  CIVIC.challenges.forEach(challenge => {
+  getAllChallenges().forEach(challenge => {
     const card = document.createElement('div');
     card.className = `tb-challenge-card ${selectedChallengeId === challenge.id ? 'active' : ''}`;
     card.onclick = () => selectChallenge(challenge.id);
-    
+
     // Calculate open slots across all teams for this challenge
     const teams = getTeams().filter(t => t.challengeId === challenge.id);
     let totalSlots = 0;
@@ -43,7 +43,9 @@ function renderChallenges() {
 
     card.innerHTML = `
       <div class="tb-challenge-title">${challenge.title}</div>
+      ${challenge.domain ? `<div class="tb-challenge-domain">${challenge.domain}</div>` : ''}
       <div class="tb-challenge-desc">${challenge.description}</div>
+      ${challenge.sourceReportId ? `<div class="tb-challenge-origin">🔗 From citizen report ${challenge.sourceReportId} (${wardInfo(challenge.sourceWard).name})</div>` : ''}
       <div class="tb-challenge-meta">
         <span>📅 ${new Date(challenge.deadline).toLocaleDateString()}</span>
         <span>👥 Max ${challenge.teamSizeLimit} per team</span>
@@ -67,8 +69,8 @@ function selectChallenge(challengeId) {
 function renderTeamsForChallenge(challengeId) {
   const panel = document.getElementById('tbTeamsPanel');
   const container = document.getElementById('tbTeamsContainer');
-  const challenge = CIVIC.challenges.find(c => c.id === challengeId);
-  
+  const challenge = getAllChallenges().find(c => c.id === challengeId);
+
   if (!panel || !container || !challenge) return;
   
   panel.style.display = 'flex';
@@ -143,7 +145,7 @@ function closeTbModal() {
 }
 
 function openCreateTeamModal() {
-  const challenge = CIVIC.challenges.find(c => c.id === selectedChallengeId);
+  const challenge = getAllChallenges().find(c => c.id === selectedChallengeId);
   if (!challenge) return;
   
   document.getElementById('tbModalTitle').textContent = 'Create New Team';

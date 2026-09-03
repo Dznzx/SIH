@@ -3,8 +3,34 @@ let activePolicyMinistryFilter = 'all';
 
 // Initialize Policy Reports Module
 function initPolicyReports() {
+  renderInstitutionalParticipation();
   renderPainPointMatrix();
   renderPolicyBriefs();
+}
+
+// SIH26043 explicitly asks for analytics tracking "institutional
+// participation" — how many of the reported societal problems actually
+// became university challenges, how many teams/universities engaged, and
+// how many industry/MSME/investor partners are registered to fund them.
+function renderInstitutionalParticipation(){
+  const row = document.getElementById('institutionalParticipationRow');
+  if(!row) return;
+
+  const challenges = getAllChallenges();
+  const escalated = challenges.filter(c => c.sourceReportId);
+  const teams = (function(){
+    try{ return JSON.parse(localStorage.getItem('civic_teams') || '[]'); } catch(e){ return []; }
+  })();
+  const universities = new Set();
+  teams.forEach(t => Object.values(t.members || {}).forEach(m => { if(m.uni) universities.add(m.uni); }));
+  const partnerTypes = new Set((CIVIC.investors || []).map(i => i.type || 'Investor / VC'));
+
+  row.innerHTML = `
+    <div class="kpi"><div class="num">${escalated.length}</div><div class="lbl">Reports escalated to university challenges</div></div>
+    <div class="kpi"><div class="num">${teams.length}</div><div class="lbl">Student teams formed</div></div>
+    <div class="kpi"><div class="num">${universities.size}</div><div class="lbl">Universities represented</div></div>
+    <div class="kpi"><div class="num">${partnerTypes.size}</div><div class="lbl">Partner types engaged (VC / MSME / Lab)</div></div>
+  `;
 }
 
 // Filter Policy Briefs by Ministry
