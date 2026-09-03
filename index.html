@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CivicSetu — Report. Route. Resolve.</title>
-<link rel="stylesheet" href="css/app.css?v=14">
+<link rel="stylesheet" href="css/app.css?v=15">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700;800&display=swap">
@@ -12,11 +12,11 @@
 </head>
 <body>
 
-<!-- Prototype sign-in — client-side only, no backend. Not secure; see the
-     on-screen labelling. Gates access to the Authority dashboard. -->
+<!-- Real sign-in via Supabase Auth (Google OAuth). Role/university (which
+     Google doesn't know) live in the `profiles` table, collected once right
+     after a brand-new sign-in. Gates access to the Authority dashboard. -->
 <div class="auth-gate" id="authGate">
   <div class="auth-card">
-    <div class="auth-badge">⚠ Prototype sign-in — demo only</div>
     <div style="text-align:center; margin-bottom:16px; height:100px; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:6px;">
       <svg width="52" height="52" viewBox="0 0 52 52" aria-label="CivicSetu Logo" role="img">
         <circle cx="26" cy="26" r="24" fill="#e4f4ea"/>
@@ -27,30 +27,41 @@
       </svg>
       <div style="font-weight:800; font-size:19px; color:#155e3a; letter-spacing:-.02em;">CivicSetu</div>
     </div>
-    <label for="authRoleSelect">Select your role</label>
-    <select id="authRoleSelect" style="width:100%; padding:10px; margin-bottom:12px; border:1px solid var(--line); border-radius:6px; font-family:var(--font);">
-      <option value="student">Student</option>
-      <option value="faculty">Faculty</option>
-      <option value="industry">Industry Partner</option>
-      <option value="government">Government Body</option>
-      <option value="ngo">NGO</option>
-      <option value="mentor">Mentor</option>
-      <option value="investor">Angel Investor / VC</option>
-      <option value="admin">Platform Admin</option>
-    </select>
-    <div id="authUnifiedForm">
-      <label for="authNameInput">Your name</label>
-      <input type="text" id="authNameInput" placeholder="e.g. John Doe">
+
+    <!-- Step 1: real sign-in via Supabase Auth (Google OAuth) -->
+    <div id="authGoogleStep">
+      <p style="text-align:center; color:var(--muted); font-size:13.5px; margin:0 0 18px;">Sign in with your Google account to report issues, join teams, and track your civic impact.</p>
+      <button class="btn btn-primary" id="authGoogleBtn" style="width:100%; display:flex; align-items:center; justify-content:center; gap:10px;">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.9v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.66 9c0-.59.1-1.17.29-1.7V4.97H.9A9 9 0 0 0 0 9c0 1.45.35 2.83.9 4.03l3.05-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .9 4.97l3.05 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+        Sign in with Google
+      </button>
+      <p style="text-align:center; color:var(--muted); font-size:11px; margin-top:14px; line-height:1.5;">Only your name, email and profile photo are read from Google. We never see your Google password.</p>
+    </div>
+
+    <!-- Step 2: shown once, right after a brand-new Google sign-in, to capture
+         the app-specific fields Google doesn't know about. -->
+    <div id="authProfileStep" style="display:none;">
+      <p style="text-align:center; color:var(--muted); font-size:13px; margin:0 0 16px;">Welcome, <strong id="authProfileGreetName"></strong> — one last step.</p>
+      <label for="authRoleSelect">Select your role</label>
+      <select id="authRoleSelect" style="width:100%; padding:10px; margin-bottom:12px; border:1px solid var(--line); border-radius:6px; font-family:var(--font);">
+        <option value="student">Student</option>
+        <option value="faculty">Faculty</option>
+        <option value="industry">Industry Partner</option>
+        <option value="government">Government Body</option>
+        <option value="ngo">NGO</option>
+        <option value="mentor">Mentor</option>
+        <option value="investor">Angel Investor / VC</option>
+        <option value="admin">Platform Admin</option>
+      </select>
       <div id="authUniGroup">
         <label for="authUniInput">University (for cross-university teams)</label>
         <input type="text" id="authUniInput" placeholder="e.g. IIT Bombay">
       </div>
-      <label for="authPasscode">Passcode</label>
-      <input type="password" id="authPasscode" placeholder="Passcode (1234)">
-      <div class="auth-hint">Prototype credential: <code>1234</code></div>
-      <div class="auth-error" id="authError" style="display:none;">Incorrect passcode</div>
-      <button class="btn btn-primary" id="authSubmit" style="margin-top:12px; width:100%;">Sign in</button>
+      <button class="btn btn-primary" id="authProfileSubmit" style="margin-top:12px; width:100%;">Continue</button>
     </div>
+
+    <!-- Shown briefly while an existing session is being restored on load. -->
+    <div id="authLoadingStep" style="display:none; text-align:center; color:var(--muted); font-size:13px; padding:20px 0;">Signing you in…</div>
   </div>
 </div>
 
@@ -948,22 +959,22 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="js/supabase-client.js?v=14"></script>
-<script src="js/data.js?v=14"></script>
-<script src="js/i18n.js?v=14"></script>
-<script src="js/accessibility.js?v=14"></script>
-<script src="js/geo-cluster.js?v=14"></script>
-<script src="js/vendor/tf.min.js?v=14"></script>
-<script src="js/vendor/mobilenet.min.js?v=14"></script>
-<script src="js/ml.js?v=14"></script>
-<script src="js/app.js?v=14"></script>
-<script src="js/citizen.js?v=14"></script>
-<script src="js/authority.js?v=14"></script>
-<script src="js/portfolio.js?v=14"></script>
-<script src="js/teambuilder.js?v=14"></script>
-<script src="js/investor.js?v=14"></script>
-<script src="js/policy.js?v=14"></script>
-<script src="js/badges.js?v=14"></script>
-<script src="js/chatbot.js?v=14"></script>
+<script src="js/supabase-client.js?v=15"></script>
+<script src="js/data.js?v=15"></script>
+<script src="js/i18n.js?v=15"></script>
+<script src="js/accessibility.js?v=15"></script>
+<script src="js/geo-cluster.js?v=15"></script>
+<script src="js/vendor/tf.min.js?v=15"></script>
+<script src="js/vendor/mobilenet.min.js?v=15"></script>
+<script src="js/ml.js?v=15"></script>
+<script src="js/app.js?v=15"></script>
+<script src="js/citizen.js?v=15"></script>
+<script src="js/authority.js?v=15"></script>
+<script src="js/portfolio.js?v=15"></script>
+<script src="js/teambuilder.js?v=15"></script>
+<script src="js/investor.js?v=15"></script>
+<script src="js/policy.js?v=15"></script>
+<script src="js/badges.js?v=15"></script>
+<script src="js/chatbot.js?v=15"></script>
 </body>
 </html>

@@ -1,10 +1,12 @@
-// ---------- Prototype role gate (client-side only, no backend — not secure) ----------
-// Blocks the whole app behind a role pick until currentUser is set. This is
-// what makes the Authority dashboard actually unreachable from Citizen role,
-// rather than just visually hidden.
-const USER_KEY = 'civic_user';
+// ---------- Real sign-in: Supabase Auth (Google OAuth) ----------
+// Blocks the whole app behind a real session until currentUser is set. This
+// is what makes the Authority dashboard actually unreachable from Citizen
+// role, rather than just visually hidden. Google only ever tells us name/
+// email/photo — role and university are app-specific, so those live in a
+// `profiles` row keyed by the Supabase Auth user id (see js/supabase-client.js
+// and the `profiles` table/RLS policies) and get collected in a one-time
+// "complete your profile" step right after a brand-new sign-in.
 let currentUser = null;
-try{ currentUser = JSON.parse(localStorage.getItem(USER_KEY) || 'null'); } catch(e){ currentUser = null; }
 
 // Roles that get Authority-dashboard access: legacy 'officer' plus the
 // unified sign-in form's 'government' and 'admin' roles.
@@ -49,57 +51,107 @@ applyRoleUI();
 // Roles with their own dedicated landing dashboard, rather than the
 // citizen home screen, once signed in.
 const ROLE_LANDING_VIEW = { faculty: 'faculty', industry: 'industry', ngo: 'ngo', mentor: 'mentor', admin: 'admin' };
-function saveUser(u){
-  currentUser = u;
-  localStorage.setItem(USER_KEY, JSON.stringify(u));
+// route: true only right after a fresh sign-in/profile-completion, not when
+// merely restoring an existing session on page load (matches the old
+// behavior, where a reload never forced you off whatever view you had open).
+function setCurrentUser(profile, route){
+  currentUser = {
+    id: profile.id,
+    name: profile.name || (profile.email ? profile.email.split('@')[0] : 'User'),
+    email: profile.email,
+    avatar_url: profile.avatar_url,
+    role: profile.role,
+    university: profile.university,
+    uni: profile.university // teambuilder.js reads currentUser.uni
+  };
+  if(isOfficerRole(currentUser.role)) currentUser.department = CIVIC.departments ? Object.values(CIVIC.departments)[0] : 'General';
   applyRoleUI();
-  // initTeamBuilder() also ran once at DOMContentLoaded, before anyone had
-  // signed in, so its .student-only nav toggle needs re-running now that
-  // currentUser is actually set — otherwise Team Builder is never reachable.
   if(typeof initTeamBuilder==='function') initTeamBuilder();
-  if(isOfficerRole(u.role) && u.role !== 'admin'){
+  if(!route) return;
+  if(isOfficerRole(currentUser.role) && currentUser.role !== 'admin'){
     setMode('dash');
-  } else if(ROLE_LANDING_VIEW[u.role]){
+  } else if(ROLE_LANDING_VIEW[currentUser.role]){
     setMode('citizen');
-    goto(ROLE_LANDING_VIEW[u.role]);
+    goto(ROLE_LANDING_VIEW[currentUser.role]);
   } else {
     setMode('citizen');
   }
 }
-document.getElementById('signOutBtn')?.addEventListener('click', ()=>{
+
+function showAuthStep(step){
+  ['authGoogleStep','authProfileStep','authLoadingStep'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.style.display = (id===step) ? '' : 'none';
+  });
+}
+
+async function loadProfileAndEnter(session, route){
+  const { data: profile, error } = await SB.client.from('profiles').select('*').eq('id', session.user.id).single();
+  if(error || !profile){
+    console.error('Failed to load profile:', error?.message);
+    showAuthStep('authGoogleStep');
+    return;
+  }
+  if(!profile.role){
+    // Brand-new sign-in — the auth trigger created a bare row (name/email/
+    // avatar from Google) but role/university still need collecting.
+    const greet = document.getElementById('authProfileGreetName');
+    if(greet) greet.textContent = profile.name || profile.email || 'there';
+    showAuthStep('authProfileStep');
+    window.__pendingProfile = profile;
+    return;
+  }
+  setCurrentUser(profile, route);
+}
+
+document.getElementById('authGoogleBtn')?.addEventListener('click', async ()=>{
+  if(!SB.client){ alert('Sign-in is unavailable right now — could not reach the auth service.'); return; }
+  const { error } = await SB.client.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin + window.location.pathname }
+  });
+  // A successful call navigates away to Google immediately — this only
+  // runs if it couldn't even start (e.g. the Google provider hasn't been
+  // enabled in the Supabase project yet).
+  if(error){
+    console.error('Google sign-in failed to start:', error.message);
+    alert('Google sign-in isn\'t set up yet on this deployment (' + error.message + ').');
+  }
+});
+
+document.getElementById('authProfileSubmit')?.addEventListener('click', async ()=>{
+  const role = document.getElementById('authRoleSelect').value;
+  const university = document.getElementById('authUniInput').value.trim();
+  const profile = window.__pendingProfile;
+  if(!profile) return;
+  const { error } = await SB.client.from('profiles').update({ role, university: university || null }).eq('id', profile.id);
+  if(error){ console.error('Failed to save profile:', error.message); alert('Could not save your profile — please try again.'); return; }
+  setCurrentUser({ ...profile, role, university: university || null }, true);
+});
+
+document.getElementById('signOutBtn')?.addEventListener('click', async ()=>{
+  if(SB.client) await SB.client.auth.signOut();
   currentUser = null;
-  localStorage.removeItem(USER_KEY);
   location.reload();
 });
 
-// Unified sign-in form: one role picker plus a shared name/university/passcode
-// form (the university field only matters for cross-university team roles).
-const authRoleSelect = document.getElementById('authRoleSelect');
-const authUniGroup = document.getElementById('authUniGroup');
-const ROLES_WITH_UNIVERSITY = new Set(['student', 'faculty']);
-function syncAuthUniGroup(){
-  if(!authRoleSelect || !authUniGroup) return;
-  authUniGroup.style.display = ROLES_WITH_UNIVERSITY.has(authRoleSelect.value) ? 'block' : 'none';
+// Drives the whole gate: fires once on load with whatever session already
+// exists (or none), and again the instant a Google OAuth redirect completes.
+if(SB.client){
+  showAuthStep('authLoadingStep');
+  SB.client.auth.onAuthStateChange((event, session)=>{
+    if(session && (event==='INITIAL_SESSION' || event==='SIGNED_IN' || event==='TOKEN_REFRESHED')){
+      if(!currentUser) loadProfileAndEnter(session, event==='SIGNED_IN');
+    } else if(event==='SIGNED_OUT' || (event==='INITIAL_SESSION' && !session)){
+      currentUser = null;
+      showAuthStep('authGoogleStep');
+      applyRoleUI();
+    }
+  });
+} else {
+  showAuthStep('authGoogleStep');
+  document.getElementById('authGoogleStep').innerHTML = '<p style="text-align:center; color:var(--red); font-size:13px;">Sign-in is unavailable — could not reach the authentication service. Check your connection and reload.</p>';
 }
-authRoleSelect?.addEventListener('change', syncAuthUniGroup);
-syncAuthUniGroup();
-
-document.getElementById('authSubmit')?.addEventListener('click', ()=>{
-  const role = authRoleSelect.value;
-  const name = document.getElementById('authNameInput').value.trim() || 'User';
-  const university = document.getElementById('authUniInput').value.trim();
-  const code = document.getElementById('authPasscode').value;
-  const errorEl = document.getElementById('authError');
-  if(code !== '1234'){
-    errorEl.style.display = 'block';
-    return;
-  }
-  errorEl.style.display = 'none';
-  const user = { role, name };
-  if(university){ user.university = university; user.uni = university; } // teambuilder.js reads currentUser.uni
-  if(isOfficerRole(role)) user.department = CIVIC.departments ? Object.values(CIVIC.departments)[0] : 'General';
-  saveUser(user);
-});
 
 // ---------- Shared report helpers (CIVIC.reports is the single source of truth,
 // read and mutated by both js/citizen.js and js/authority.js) ----------
