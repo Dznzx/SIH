@@ -6,6 +6,12 @@ const USER_KEY = 'civic_user';
 let currentUser = null;
 try{ currentUser = JSON.parse(localStorage.getItem(USER_KEY) || 'null'); } catch(e){ currentUser = null; }
 
+// Roles that get Authority-dashboard access: legacy 'officer' plus the
+// unified sign-in form's 'government' and 'admin' roles.
+function isOfficerRole(role){
+  return role==='officer' || role==='government' || role==='admin';
+}
+
 function applyRoleUI(){
   const gate = document.getElementById('authGate');
   const appEl = document.querySelector('.app');
@@ -17,7 +23,7 @@ function applyRoleUI(){
   if(gate) gate.style.display = 'none';
   if(appEl) appEl.style.display = '';
 
-  const isOfficer = currentUser.role === 'officer';
+  const isOfficer = isOfficerRole(currentUser.role);
   const modeToggle = document.querySelector('.mode-toggle');
   if(modeToggle) modeToggle.style.display = isOfficer ? '' : 'none';
   const authorityTile = document.getElementById('authorityTile');
@@ -37,7 +43,7 @@ function saveUser(u){
   currentUser = u;
   localStorage.setItem(USER_KEY, JSON.stringify(u));
   applyRoleUI();
-  setMode(u.role==='officer' ? 'dash' : 'citizen');
+  setMode(isOfficerRole(u.role) ? 'dash' : 'citizen');
 }
 document.getElementById('signOutBtn')?.addEventListener('click', ()=>{
   currentUser = null;
@@ -45,31 +51,22 @@ document.getElementById('signOutBtn')?.addEventListener('click', ()=>{
   location.reload();
 });
 
-// Populate the officer department picker from the real department table.
-const authOfficerDept = document.getElementById('authOfficerDept');
-if(authOfficerDept){
-  [...new Set(Object.values(CIVIC.departments))].forEach(dept=>{
-    const opt = document.createElement('option');
-    opt.value = dept; opt.textContent = dept;
-    authOfficerDept.appendChild(opt);
-  });
+// Unified sign-in form: one role picker plus a shared name/university/passcode
+// form (the university field only matters for cross-university team roles).
+const authRoleSelect = document.getElementById('authRoleSelect');
+const authUniGroup = document.getElementById('authUniGroup');
+const ROLES_WITH_UNIVERSITY = new Set(['student', 'faculty']);
+function syncAuthUniGroup(){
+  if(!authRoleSelect || !authUniGroup) return;
+  authUniGroup.style.display = ROLES_WITH_UNIVERSITY.has(authRoleSelect.value) ? 'block' : 'none';
 }
-document.querySelectorAll('.auth-role-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.auth-role-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    const role = btn.dataset.role;
-    document.getElementById('authCitizenForm').style.display = role==='citizen' ? 'block' : 'none';
-    document.getElementById('authOfficerForm').style.display = role==='officer' ? 'block' : 'none';
-  });
-});
-document.getElementById('authCitizenSubmit')?.addEventListener('click', ()=>{
-  const name = document.getElementById('authNameInput').value.trim() || 'Citizen';
-  saveUser({role:'citizen', name});
-});
-document.getElementById('authOfficerSubmit')?.addEventListener('click', ()=>{
-  const name = document.getElementById('authOfficerName').value.trim() || 'Officer';
-  const department = authOfficerDept.value;
+authRoleSelect?.addEventListener('change', syncAuthUniGroup);
+syncAuthUniGroup();
+
+document.getElementById('authSubmit')?.addEventListener('click', ()=>{
+  const role = authRoleSelect.value;
+  const name = document.getElementById('authNameInput').value.trim() || 'User';
+  const university = document.getElementById('authUniInput').value.trim();
   const code = document.getElementById('authPasscode').value;
   const errorEl = document.getElementById('authError');
   if(code !== '1234'){
@@ -77,7 +74,10 @@ document.getElementById('authOfficerSubmit')?.addEventListener('click', ()=>{
     return;
   }
   errorEl.style.display = 'none';
-  saveUser({role:'officer', name, department});
+  const user = { role, name };
+  if(university) user.university = university;
+  if(isOfficerRole(role)) user.department = CIVIC.departments ? Object.values(CIVIC.departments)[0] : 'General';
+  saveUser(user);
 });
 
 // ---------- Shared report helpers (CIVIC.reports is the single source of truth,
@@ -399,7 +399,7 @@ document.getElementById('newReportBtn').addEventListener('click', ()=>goto('home
 function setMode(mode){
   // Role gate: the Authority dashboard is unreachable outside the officer
   // role, whether reached via the toggle, the quick-tile, or a direct call.
-  if(mode==='dash' && (!currentUser || currentUser.role!=='officer')){
+  if(mode==='dash' && (!currentUser || !isOfficerRole(currentUser.role))){
     mode = 'citizen';
   }
   document.querySelectorAll('.mode-toggle button').forEach(b=>b.classList.toggle('active', b.dataset.mode===mode));

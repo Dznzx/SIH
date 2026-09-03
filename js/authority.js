@@ -1,21 +1,3 @@
-// ---------- Authority: ward heatmap ----------
-const wardMap = document.getElementById('wardMap');
-function renderWardMap(){
-  wardMap.innerHTML = '';
-  CIVIC.wards.forEach(w=>{
-    const pct = Math.min(100, Math.round(w.reportRate * 10));
-    const color = w.underReported ? 'var(--muted)' : (pct>60 ? 'var(--red)' : pct>30 ? 'var(--amber)' : 'var(--green)');
-    const label = w.underReported ? 'under-reported' : (pct>60 ? 'high' : pct>30 ? 'medium' : 'low');
-    const row = document.createElement('div');
-    row.className = 'ward-bar-row';
-    row.innerHTML = `<div class="wname">${w.name}</div>
-      <div class="ward-bar-track"><div class="ward-bar-fill" style="width:${pct}%; background:${color};"></div></div>
-      <div class="wval">${label}</div>`;
-    wardMap.appendChild(row);
-  });
-}
-renderWardMap();
-
 // ---------- Authority: KPI row ----------
 function renderKPIs(){
   const all = CIVIC.reports;
