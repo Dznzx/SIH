@@ -419,8 +419,8 @@ document.querySelectorAll('.navlinks a').forEach(a=>{
     if(a.dataset.view==='policy' && typeof renderInstitutionalParticipation==='function') renderInstitutionalParticipation();
   });
 });
-document.getElementById('topReportBtn').addEventListener('click', ()=>goto('home'));
-document.getElementById('newReportBtn').addEventListener('click', ()=>goto('home'));
+document.getElementById('topReportBtn').addEventListener('click', ()=>goto('report'));
+document.getElementById('newReportBtn').addEventListener('click', ()=>goto('report'));
 
 function setMode(mode){
   // Role gate: the Authority dashboard is unreachable outside the officer
