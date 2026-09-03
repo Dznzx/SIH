@@ -317,6 +317,23 @@ function refreshAllHotspots(){
   if(dashLayer && dashLayer.querySelector('svg')) renderHotspots(dashLayer);
 }
 
+// Fires whenever js/data.js merges fresh rows in from Supabase (initial
+// load, or a realtime insert/update from ANY browser). Every screen that
+// reads CIVIC.reports needs to redraw — this is what makes a citizen's
+// report actually show up on an already-open Authority dashboard, and vice
+// versa, without either side reloading the page. Every call here is
+// defensively guarded since this listener is registered before citizen.js/
+// authority.js/policy.js have necessarily finished defining these functions
+// on first load — by the time the event actually fires (after a network
+// round trip) they always exist.
+window.addEventListener('civic:reportsUpdated', ()=>{
+  if(typeof renderQueue==='function') renderQueue();
+  if(typeof renderReports==='function') renderReports(typeof reportsFilter!=='undefined' ? reportsFilter : 'all');
+  if(typeof renderResolvedGallery==='function') renderResolvedGallery();
+  if(typeof renderInstitutionalParticipation==='function') renderInstitutionalParticipation();
+  refreshAllHotspots();
+});
+
 function showToast(message, duration=2200){
   let el = document.getElementById('toast');
   if(!el){
@@ -370,6 +387,13 @@ function flushOfflineQueue(){
       updateOfflineStrip();
       renderReports(reportsFilter);
       renderQueue();
+      // A queued report was never inserted into Supabase — only now that
+      // it's "back online" does it actually become visible to other users.
+      if(typeof SB !== 'undefined' && SB.client){
+        SB.insertReport(r).then(ok=>{
+          if(!ok) console.error('Queued report synced locally but failed to reach Supabase:', r.id);
+        });
+      }
       if(i === queued.length-1){
         pushNotification('🔄', `Synced ${queued.length} queued report${queued.length===1?'':'s'}`);
       }

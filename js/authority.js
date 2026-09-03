@@ -157,15 +157,11 @@ async function escalateReport(r){
     note: `Auto-escalated to ${CIVIC.departments[r.category] || 'Ward Officer'}`
   });
   pushNotification('🚨', `SLA breached: ${r.id} — escalated to ${CIVIC.departments[r.category] || 'Ward Officer'}`);
-  
-  try {
-    await fetch(`/api/reports/${r.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ escalated: r.escalated, timeline: r.timeline })
+
+  if(typeof SB !== 'undefined' && SB.client){
+    SB.updateReport(r.id, { timeline: r.timeline }).then(ok=>{
+      if(!ok) console.error('Failed to sync SLA escalation to Supabase:', r.id);
     });
-  } catch (err) {
-    console.error("Failed to sync escalate", err);
   }
 }
 setInterval(()=>{
@@ -231,15 +227,11 @@ async function assignReport(r){
   const step = r.timeline.find(s=>s.step==='Assigned to Officer');
   if(step){ step.done = true; step.active = false; step.at = new Date().toISOString(); step.note = `Assigned to: ${r.assignee} (by ${officer})`; }
   pushNotification('🛠️', `${r.id} assigned to ${r.assignee}`);
-  
-  try {
-    await fetch(`/api/reports/${r.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: r.status, assignee: r.assignee, timeline: r.timeline })
+
+  if(typeof SB !== 'undefined' && SB.client){
+    SB.updateReport(r.id, { status: r.status, assignee: r.assignee, timeline: r.timeline }).then(ok=>{
+      if(!ok) console.error('Failed to sync assignment to Supabase:', r.id);
     });
-  } catch (err) {
-    console.error("Failed to sync assignReport", err);
   }
 }
 
@@ -247,47 +239,17 @@ async function resolveReport(r, proofPhoto){
   ensureTimeline(r);
   r.status = 'resolved';
   r.resolvedAt = new Date().toISOString();
-  
+  if(proofPhoto) r.proofPhoto = proofPhoto; // data URL, same as how `photo` is stored
+
   const officer = currentUser?.name || 'Officer';
   const step = r.timeline.find(s=>s.step==='Issue Resolved');
   if(step){ step.done = true; step.active = false; step.at = r.resolvedAt; step.note = `Resolved by ${officer}`; }
   pushNotification('✅', `Resolved: ${r.title}`);
 
-  try {
-    let formData = new FormData();
-    formData.append('status', r.status);
-    formData.append('resolvedAt', r.resolvedAt);
-    formData.append('timeline', JSON.stringify(r.timeline));
-    
-    if (proofPhoto) {
-      // proofPhoto might be a data URI here
-      if (proofPhoto.startsWith('data:')) {
-        const byteString = atob(proofPhoto.split(',')[1]);
-        const mimeString = proofPhoto.split(',')[0].split(':')[1].split(';')[0];
-        const ab = new ArrayBuffer(byteString.length);
-        const ia = new Uint8Array(ab);
-        for (let i = 0; i < byteString.length; i++) {
-            ia[i] = byteString.charCodeAt(i);
-        }
-        const blob = new Blob([ab], {type: mimeString});
-        formData.append('proofPhoto', blob, 'proof.jpg');
-      } else {
-        r.proofPhoto = proofPhoto;
-        formData.append('proofPhoto', proofPhoto);
-      }
-    }
-
-    const res = await fetch(`/api/reports/${r.id}`, {
-      method: 'PUT',
-      body: formData
+  if(typeof SB !== 'undefined' && SB.client){
+    SB.updateReport(r.id, { status: r.status, resolvedAt: r.resolvedAt, timeline: r.timeline, proofPhoto: r.proofPhoto }).then(ok=>{
+      if(!ok) console.error('Failed to sync resolution to Supabase:', r.id);
     });
-    
-    if (res.ok) {
-      const data = await res.json();
-      if (data.proofPhotoPath) r.proofPhoto = data.proofPhotoPath;
-    }
-  } catch (err) {
-    console.error("Failed to sync resolveReport", err);
   }
 }
 function finishResolve(){

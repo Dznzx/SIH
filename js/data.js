@@ -478,3 +478,31 @@ function createChallengeFromReport(report){
     (r.comments||[]).forEach(c=>{ if(c.at) c.at = shift(c.at); });
   });
 })();
+
+/* ---------- Reports: shared Supabase backend, not a local seed array ----------
+   Everything above is a local fallback so the demo still renders instantly
+   and works offline. As soon as Supabase answers, its rows become
+   authoritative (merged in by id — a Supabase row overwrites a local seed
+   row with the same id, and any row Supabase has that isn't in the local
+   seed is a real report from another user/browser and gets added). A
+   realtime subscription re-runs this merge on every insert/update from
+   ANY client, which is what makes a citizen's report show up on an
+   already-open Authority dashboard without a refresh. */
+async function bootstrapReportsFromSupabase(){
+  if(typeof SB === 'undefined' || !SB.client) return;
+  try{
+    const rows = await SB.listReports();
+    if(!rows) return; // fetch failed (offline, RLS, etc.) — keep local fallback data
+    const byId = new Map(CIVIC.reports.map(r=>[r.id, r]));
+    rows.forEach(row => byId.set(row.id, row));
+    CIVIC.reports.length = 0;
+    CIVIC.reports.push(...Array.from(byId.values()));
+    window.dispatchEvent(new CustomEvent('civic:reportsUpdated'));
+  } catch(e){
+    console.error('Supabase reports bootstrap failed:', e);
+  }
+}
+bootstrapReportsFromSupabase();
+if(typeof SB !== 'undefined' && SB.client){
+  SB.subscribeReports(() => bootstrapReportsFromSupabase());
+}
