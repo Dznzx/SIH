@@ -6,11 +6,12 @@
 // "RAG" half: retrieve first, then hand only the retrieved paragraphs (not
 // the whole KB) to the model as context.
 //
-// Generation: calls the Anthropic Messages API using ANTHROPIC_API_KEY from
-// the Vercel project's environment variables. If that key isn't configured,
-// the endpoint still responds usefully — it returns the retrieved KB
-// paragraphs directly instead of a generated answer, so the demo works
-// before anyone wires up a key.
+// Generation: calls Groq's free OpenAI-compatible chat API using
+// GROQ_API_KEY from the Vercel project's environment variables (Groq's free
+// tier is why this project uses it instead of a paid LLM API). If that key
+// isn't configured, the endpoint still responds usefully — it returns the
+// retrieved KB paragraphs directly instead of a generated answer, so the
+// demo works before anyone wires up a key.
 const kb = require('./kb.json');
 
 const STOPWORDS = new Set(['the','a','an','is','are','was','were','be','to','of','and','or','in','on','for','with','how','what','does','do','can','i','you','it','this','that','my']);
@@ -34,39 +35,40 @@ function retrieve(query, k = 4) {
   return top.length ? top.map(s => s.doc) : kb.slice(0, k);
 }
 
-async function callAnthropic(question, contextDocs, history) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+async function callGroq(question, contextDocs, history) {
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
 
   const contextText = contextDocs.map((d, i) => `[${i + 1}] ${d.text}`).join('\n\n');
   const system = `You are the CivicSetu AI Assistant, embedded in a Smart India Hackathon prototype (SIH26043, Government of Jharkhand) that crowdsources societal challenges and routes them to universities and industry. Answer the user's question ONLY using the CONTEXT below — it describes exactly what this specific prototype does. If the answer isn't in the context, say you don't have that information in this prototype rather than guessing. Keep answers under 120 words, plain text, no markdown headers.\n\nCONTEXT:\n${contextText}`;
 
-  const messages = (history || [])
-    .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-    .slice(-6)
+  const messages = [{ role: 'system', content: system }]
+    .concat(
+      (history || [])
+        .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+        .slice(-6)
+    )
     .concat([{ role: 'user', content: question }]);
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01'
+      'authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'llama-3.3-70b-versatile',
       max_tokens: 300,
-      system,
       messages
     })
   });
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(`Anthropic API ${res.status}: ${errText.slice(0, 300)}`);
+    throw new Error(`Groq API ${res.status}: ${errText.slice(0, 300)}`);
   }
   const data = await res.json();
-  const text = (data.content || []).map(b => b.text || '').join('').trim();
+  const text = data.choices?.[0]?.message?.content?.trim();
   return text || null;
 }
 
@@ -74,7 +76,7 @@ function offlineAnswer(contextDocs) {
   const bullets = contextDocs.map(d => `• ${d.text}`).join('\n\n');
   return {
     mode: 'offline',
-    reply: `I don't have a live AI connection configured yet (no ANTHROPIC_API_KEY set in this Vercel project), so here's what I found directly in CivicSetu's knowledge base:\n\n${bullets}`
+    reply: `I don't have a live AI connection configured yet (no GROQ_API_KEY set in this Vercel project), so here's what I found directly in CivicSetu's knowledge base:\n\n${bullets}`
   };
 }
 
@@ -101,9 +103,9 @@ module.exports = async (req, res) => {
     let reply;
     let mode = 'llm';
     try {
-      reply = await callAnthropic(message, contextDocs, history);
+      reply = await callGroq(message, contextDocs, history);
     } catch (llmErr) {
-      console.error('Anthropic call failed:', llmErr.message);
+      console.error('Groq call failed:', llmErr.message);
       reply = null;
     }
     if (!reply) {

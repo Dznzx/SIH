@@ -1,5 +1,5 @@
 // CivicSetu AI Assistant — floating widget. Talks to /api/chat (a Vercel
-// serverless function doing keyword-retrieval + Claude generation). Keeps
+// serverless function doing keyword-retrieval + Groq/Llama generation). Keeps
 // its own short chat history in localStorage so a refresh doesn't lose it.
 (function(){
   const HISTORY_KEY = 'civic_chat_history';
