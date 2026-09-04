@@ -18,7 +18,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="CivicSetu">
 
-<link rel="stylesheet" href="css/app.css?v=19">
+<link rel="stylesheet" href="css/app.css?v=20">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700;800&display=swap">
@@ -328,24 +328,7 @@
           <div class="fchip" data-mf="working" data-i18n="filter_working">Working</div>
           <div class="fchip" data-mf="resolved" data-i18n="filter_resolved">Resolved</div>
         </div>
-        <div class="map-item" data-status="open" onclick="showPopup('handpump')">
-          <div class="map-item-top"><strong>🚰 Broken Handpump</strong><span class="status-pill status-open">Open</span></div>
-          <div class="loc">Ward 4, Near Primary School</div>
-          <p>Not yielding water for the last three days.</p>
-          <div class="foot">🕒 Reported 2 hrs ago</div>
-        </div>
-        <div class="map-item" data-status="working" onclick="showPopup('light')">
-          <div class="map-item-top"><strong>💡 Streetlight Not Working</strong><span class="status-pill status-working">Working</span></div>
-          <div class="loc">Main Market Road</div>
-          <p>Panchayat electrician visited yesterday, parts awaited.</p>
-          <div class="foot">🕒 Reported 2 days ago</div>
-        </div>
-        <div class="map-item" data-status="resolved" onclick="showPopup('pothole')">
-          <div class="map-item-top"><strong>🕳️ Large Pothole</strong><span class="status-pill status-resolved">Resolved</span></div>
-          <div class="loc">Connecting Road to NH</div>
-          <p>Filled with gravel and leveled by the local committee.</p>
-          <div class="foot">✅ Fixed yesterday</div>
-        </div>
+        <div id="mapItemList"></div>
       </div>
       <div class="map-canvas" id="mapCanvas" style="position:relative;">
         <div id="citizenMap" style="width:100%; height:100%; z-index:1;"></div>
@@ -354,7 +337,6 @@
           <span><span class="lgdot" style="background:var(--amber);"></span>Working</span>
           <span><span class="lgdot" style="background:var(--green);"></span>Resolved</span>
         </div>
-        <div class="map-popup" id="mapPopup" style="display:none;"></div>
       </div>
     </div>
   </div>
@@ -973,23 +955,23 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="js/supabase-client.js?v=19"></script>
-<script src="js/data.js?v=19"></script>
-<script src="js/i18n.js?v=19"></script>
-<script src="js/accessibility.js?v=19"></script>
-<script src="js/geo-cluster.js?v=19"></script>
-<script src="js/vendor/tf.min.js?v=19"></script>
-<script src="js/vendor/mobilenet.min.js?v=19"></script>
-<script src="js/ml.js?v=19"></script>
-<script src="js/app.js?v=19"></script>
-<script src="js/citizen.js?v=19"></script>
-<script src="js/authority.js?v=19"></script>
-<script src="js/portfolio.js?v=19"></script>
-<script src="js/teambuilder.js?v=19"></script>
-<script src="js/investor.js?v=19"></script>
-<script src="js/policy.js?v=19"></script>
-<script src="js/badges.js?v=19"></script>
-<script src="js/chatbot.js?v=19"></script>
+<script src="js/supabase-client.js?v=20"></script>
+<script src="js/data.js?v=20"></script>
+<script src="js/i18n.js?v=20"></script>
+<script src="js/accessibility.js?v=20"></script>
+<script src="js/geo-cluster.js?v=20"></script>
+<script src="js/vendor/tf.min.js?v=20"></script>
+<script src="js/vendor/mobilenet.min.js?v=20"></script>
+<script src="js/ml.js?v=20"></script>
+<script src="js/app.js?v=20"></script>
+<script src="js/citizen.js?v=20"></script>
+<script src="js/authority.js?v=20"></script>
+<script src="js/portfolio.js?v=20"></script>
+<script src="js/teambuilder.js?v=20"></script>
+<script src="js/investor.js?v=20"></script>
+<script src="js/policy.js?v=20"></script>
+<script src="js/badges.js?v=20"></script>
+<script src="js/chatbot.js?v=20"></script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

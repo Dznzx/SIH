@@ -195,67 +195,6 @@ function ensureTimeline(r){
   }));
   return r.timeline;
 }
-// ---------- Pannable/zoomable static map (offline-safe: no tiles, no network) ----------
-// Drives drag-to-pan and the zoom buttons on a map-canvas/map-viewport pair.
-// `viewport` holds the SVG background + pins and is the thing that actually
-// moves; `canvas` is the fixed-size, overflow:hidden frame around it.
-function makePannableMap(canvas, viewport, opts={}){
-  let scale = 1, x = 0, y = 0, dragging = false, startX, startY, startPanX, startPanY;
-  const minScale = opts.minScale || 1, maxScale = opts.maxScale || 2.5;
-  function apply(animated){
-    viewport.style.transition = animated ? 'transform .2s ease' : 'none';
-    viewport.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
-  }
-  function clampPan(){
-    const rect = canvas.getBoundingClientRect();
-    const maxX = (rect.width * (scale-1)) / 2 + rect.width*0.15;
-    const maxY = (rect.height * (scale-1)) / 2 + rect.height*0.15;
-    x = Math.max(-maxX, Math.min(maxX, x));
-    y = Math.max(-maxY, Math.min(maxY, y));
-  }
-  function onDown(clientX, clientY){
-    dragging = true; startX = clientX; startY = clientY; startPanX = x; startPanY = y;
-    canvas.classList.add('dragging');
-    opts.onDragStart?.();
-  }
-  function onMove(clientX, clientY){
-    if(!dragging) return;
-    x = startPanX + (clientX - startX);
-    y = startPanY + (clientY - startY);
-    clampPan();
-    apply();
-  }
-  function onUp(){ dragging = false; canvas.classList.remove('dragging'); }
-  canvas.addEventListener('mousedown', e=>{ onDown(e.clientX, e.clientY); e.preventDefault(); });
-  window.addEventListener('mousemove', e=> onMove(e.clientX, e.clientY));
-  window.addEventListener('mouseup', onUp);
-  canvas.addEventListener('touchstart', e=>{ const t=e.touches[0]; onDown(t.clientX, t.clientY); }, {passive:true});
-  canvas.addEventListener('touchmove', e=>{ const t=e.touches[0]; onMove(t.clientX, t.clientY); }, {passive:true});
-  canvas.addEventListener('touchend', onUp);
-  return {
-    zoomIn(){ scale = Math.min(maxScale, +(scale+0.25).toFixed(2)); clampPan(); apply(true); },
-    zoomOut(){ scale = Math.max(minScale, +(scale-0.25).toFixed(2)); clampPan(); apply(true); },
-    recenter(){ scale = 1; x = 0; y = 0; apply(true); }
-  };
-}
-// Shared stylised SVG of Ranchi's four seeded wards — no tile service, no
-// network, per PROMPT.md. Reused by both the citizen Community Map and the
-// authority dashboard's Map tab so they read as the same place.
-const WARDS_MAP_SVG = `
-  <svg class="map-svg-bg" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid meet">
-    <rect width="400" height="300" fill="#eef6f0"/>
-    <path d="M60,190 Q160,140 260,175 Q320,195 365,178" stroke="#ffffff" stroke-width="9" fill="none" stroke-linecap="round"/>
-    <path d="M150,90 Q140,150 120,220" stroke="#ffffff" stroke-width="6" fill="none" stroke-linecap="round"/>
-    <polygon points="115,15 210,10 235,75 165,105 95,75" fill="#e3cfa1" stroke="#c9ab6c" stroke-width="2"/>
-    <text x="130" y="60" font-size="13" fill="#6b4f1f" font-weight="700" font-family="sans-serif">Kanke</text>
-    <polygon points="20,145 105,115 145,180 95,235 15,215" fill="#cfe8d8" stroke="#a9d3b8" stroke-width="2"/>
-    <text x="45" y="185" font-size="13" fill="#2f5b41" font-weight="700" font-family="sans-serif">Hatia</text>
-    <polygon points="235,140 325,120 365,180 320,235 250,215" fill="#d8ecdd" stroke="#a9d3b8" stroke-width="2"/>
-    <text x="270" y="185" font-size="13" fill="#2f5b41" font-weight="700" font-family="sans-serif">Doranda</text>
-    <polygon points="215,205 300,195 335,250 265,290 205,260" fill="#cfe0ec" stroke="#a7c3d8" stroke-width="2"/>
-    <text x="235" y="250" font-size="13" fill="#2c4f66" font-weight="700" font-family="sans-serif">Bariatu</text>
-  </svg>`;
-
 // (Duplicate-detection helpers now live in the "Duplicate detection via
 // DBSCAN" block below, backed by js/geo-cluster.js.)
 
@@ -282,107 +221,76 @@ function findDuplicate(category, lat, lng){
 }
 
 // ---------- Hotspot overlay (DBSCAN over all unresolved reports) ----------
-// The stylised ward SVG (WARDS_MAP_SVG above) was hand-illustrated, not
-// generated from real coordinates, so there's no built-in lat/lng->pixel
-// projection to reuse. This fits a small least-squares affine transform
-// from 4 calibration points — each ward's real report centroid paired
-// with that ward's label position in the SVG's 400x300 viewBox — so a
-// DBSCAN cluster's real (lat, lng) center can be placed in roughly the
-// right spot on the illustrated map. It's necessarily approximate (the
-// map itself is illustrative), but good enough to show which ward a
-// hotspot is in and roughly where.
-const MAP_CALIBRATION = [
-  // [lat, lng, svgX, svgY]
-  [23.34145, 85.3118, 65, 195],   // Hatia (W12) — avg of its seed reports
-  [23.3252,  85.3271, 300, 195],  // Doranda (W07)
-  [23.4055,  85.3099, 155, 55],   // Kanke (W04)
-  [23.3701,  85.3340, 270, 250],  // Bariatu (W19)
-];
-function solve3x3Augmented(rows){
-  const m = rows.map(r=>r.slice());
-  for(let i=0;i<3;i++){
-    let piv=i;
-    for(let k=i+1;k<3;k++) if(Math.abs(m[k][i])>Math.abs(m[piv][i])) piv=k;
-    [m[i],m[piv]]=[m[piv],m[i]];
-    const div=m[i][i] || 1e-9;
-    for(let j=i;j<4;j++) m[i][j]/=div;
-    for(let k=0;k<3;k++){
-      if(k===i) continue;
-      const factor=m[k][i];
-      for(let j=i;j<4;j++) m[k][j]-=factor*m[i][j];
-    }
-  }
-  return [m[0][3], m[1][3], m[2][3]];
-}
-function fitAffine(points, targetIndex){
-  let Sll=0,Slg=0,Sl1=0,Sgg=0,Sg1=0,S11=0,Slt=0,Sgt=0,St=0;
-  points.forEach(p=>{
-    const lat=p[0], lng=p[1], t=p[targetIndex];
-    Sll+=lat*lat; Slg+=lat*lng; Sl1+=lat; Sgg+=lng*lng; Sg1+=lng; S11+=1;
-    Slt+=lat*t; Sgt+=lng*t; St+=t;
-  });
-  return solve3x3Augmented([
-    [Sll, Slg, Sl1, Slt],
-    [Slg, Sgg, Sg1, Sgt],
-    [Sl1, Sg1, S11, St],
-  ]);
-}
-const AFFINE_X = fitAffine(MAP_CALIBRATION, 2);
-const AFFINE_Y = fitAffine(MAP_CALIBRATION, 3);
-function projectLatLngToMapPct(lat, lng){
-  const x = AFFINE_X[0]*lat + AFFINE_X[1]*lng + AFFINE_X[2];
-  const y = AFFINE_Y[0]*lat + AFFINE_Y[1]*lng + AFFINE_Y[2];
-  return { leftPct: Math.max(2, Math.min(98, x/400*100)), topPct: Math.max(2, Math.min(98, y/300*100)) };
-}
-
-// Renders DBSCAN hotspot circles into `layerEl` (expected to already
-// contain the WARDS_MAP_SVG background — circles are appended after it).
-// Idempotent: clears any hotspot circles it previously drew before
-// re-rendering, so it's safe to call again after any report mutation.
-function renderHotspots(layerEl){
-  if(!layerEl) return;
-  layerEl.querySelectorAll('.hotspot-circle').forEach(el=>el.remove());
+// Both real maps (citizen Community Map's `citizenMap`, authority dashboard's
+// `dashMap`, both Leaflet instances) use real lat/lng, so hotspot circles are
+// drawn as actual L.circle layers at their real radius in meters — no pixel
+// projection needed. Idempotent per map: clears the circles it previously
+// drew on that map before re-rendering, so it's safe to call again after any
+// report mutation.
+const hotspotLayersByMap = new Map(); // Leaflet map instance -> L.circle[]
+function renderHotspotsOnMap(map){
+  if(!map || typeof L === 'undefined') return;
+  (hotspotLayersByMap.get(map) || []).forEach(c => map.removeLayer(c));
   const open = CIVIC.reports.filter(r=>r.status!=='resolved' && r.status!=='queued');
   const hotspots = GeoCluster.findHotspots(open, CIVIC.hotspot.radiusM, CIVIC.hotspot.minPts);
-  hotspots.forEach(h=>{
-    const { leftPct, topPct } = projectLatLngToMapPct(h.center.lat, h.center.lng);
-    const size = Math.min(120, 36 + h.count*14);
-    const el = document.createElement('div');
-    el.className = 'hotspot-circle';
-    el.style.left = `${leftPct}%`;
-    el.style.top = `${topPct}%`;
-    el.style.width = `${size}px`;
-    el.style.height = `${size}px`;
+  const circles = hotspots.map(h=>{
     const catSummary = Object.entries(h.categories).map(([c,n])=>`${c} ×${n}`).join(', ');
-    el.title = `Hotspot: ${h.count} open reports nearby — ${catSummary}`;
-    layerEl.appendChild(el);
+    return L.circle([h.center.lat, h.center.lng], {
+      radius: CIVIC.hotspot.radiusM,
+      color: '#c0392b', weight: 1, fillColor: '#c0392b', fillOpacity: 0.15
+    }).bindTooltip(`Hotspot: ${h.count} open reports nearby — ${catSummary}`).addTo(map);
   });
+  hotspotLayersByMap.set(map, circles);
   return hotspots;
 }
-// Re-renders hotspot overlays on whichever map canvases currently exist
-// in the DOM (citizen Community Map, authority dashboard Map tab). Call
-// this after any report data mutation, same as renderQueue()/renderReports().
+// Re-renders hotspot overlays on whichever real maps currently exist (citizen
+// Community Map, authority dashboard Map tab). Call after any report
+// mutation, same as renderQueue()/renderReports().
 function refreshAllHotspots(){
-  const citizenLayer = document.getElementById('mapViewport');
-  if(citizenLayer) renderHotspots(citizenLayer);
-  const dashLayer = document.getElementById('dashMapCanvas');
-  if(dashLayer && dashLayer.querySelector('svg')) renderHotspots(dashLayer);
+  // civic:reportsUpdated can fire (via an async Supabase fetch resolving)
+  // before every later <script> tag has finished executing. `dashMap`/
+  // `citizenMap` are `let` bindings in authority.js/citizen.js — accessing
+  // one still in its temporal dead zone throws a ReferenceError, not just
+  // "undefined", so `typeof` alone isn't a safe guard here; wrap each in
+  // try/catch and just skip it for this call if its script hasn't run yet.
+  try { if(typeof citizenMap !== 'undefined' && citizenMap) renderHotspotsOnMap(citizenMap); } catch(e){}
+  try { if(typeof dashMap !== 'undefined' && dashMap) renderHotspotsOnMap(dashMap); } catch(e){}
 }
 
 // Fires whenever js/data.js merges fresh rows in from Supabase (initial
 // load, or a realtime insert/update from ANY browser). Every screen that
 // reads CIVIC.reports needs to redraw — this is what makes a citizen's
 // report actually show up on an already-open Authority dashboard, and vice
-// versa, without either side reloading the page. Every call here is
-// defensively guarded since this listener is registered before citizen.js/
-// authority.js/policy.js have necessarily finished defining these functions
-// on first load — by the time the event actually fires (after a network
-// round trip) they always exist.
+// versa, without either side reloading the page.
+//
+// This listener is registered before citizen.js/authority.js/policy.js have
+// necessarily finished defining these functions — usually the async network
+// round trip before the first fire is enough time for every later <script>
+// tag to have run, but it isn't guaranteed. Checking `typeof fn==='function'`
+// is a safe guard for the function declarations below (fully hoisted, never
+// in a temporal dead zone), but `citizenMap`/`reportsFilter` are `let`
+// bindings — reading one still in its TDZ throws a ReferenceError even
+// through `typeof`, which would otherwise abort every render call after it
+// in this same listener call. Each call is wrapped separately so one
+// failing (script not loaded yet) can't block the others.
 window.addEventListener('civic:reportsUpdated', ()=>{
-  if(typeof renderQueue==='function') renderQueue();
-  if(typeof renderReports==='function') renderReports(typeof reportsFilter!=='undefined' ? reportsFilter : 'all');
-  if(typeof renderResolvedGallery==='function') renderResolvedGallery();
-  if(typeof renderInstitutionalParticipation==='function') renderInstitutionalParticipation();
+  try { if(typeof renderQueue==='function') renderQueue(); } catch(e){}
+  try {
+    if(typeof renderReports==='function'){
+      let filter = 'all';
+      try { if(typeof reportsFilter!=='undefined') filter = reportsFilter; } catch(e){}
+      renderReports(filter);
+    }
+  } catch(e){}
+  try { if(typeof renderResolvedGallery==='function') renderResolvedGallery(); } catch(e){}
+  try { if(typeof renderInstitutionalParticipation==='function') renderInstitutionalParticipation(); } catch(e){}
+  // Only re-render the Community Map if it's already been initialized (the
+  // user has visited it at least once) — calling renderCitizenMap() before
+  // that would create a Leaflet instance inside a still-hidden view, the
+  // same zero-size-container bug the ward heatmap had.
+  try {
+    if(typeof citizenMap!=='undefined' && citizenMap && typeof renderCitizenMap==='function') renderCitizenMap();
+  } catch(e){}
   refreshAllHotspots();
 });
 
@@ -507,6 +415,14 @@ function goto(name){
   const el = document.getElementById('view-'+name);
   if(el) el.classList.add('active');
   window.scrollTo({top:0, behavior:'smooth'});
+  // Leaflet sizes itself off its container at init time — a map that was
+  // ever initialized while its view was hidden (display:none) measures 0x0
+  // and renders blank forever unless told to re-measure after becoming
+  // visible. Same class of bug as the officer dashboard's ward heatmap.
+  if(name==='map' && typeof renderCitizenMap==='function'){
+    renderCitizenMap();
+    setTimeout(()=> citizenMap?.invalidateSize(), 100);
+  }
 }
 document.querySelectorAll('.navlinks a').forEach(a=>{
   a.addEventListener('click', ()=>{

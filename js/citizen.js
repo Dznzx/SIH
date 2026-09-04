@@ -590,52 +590,79 @@ document.getElementById('postCommentBtn').addEventListener('click', ()=>{
   renderComments();
 });
 
-// ---------- Community Map popup ----------
-const popups = {
-  handpump:{title:'🚰 Broken Handpump', status:'Open', desc:'Not yielding water for 3 days.'},
-  light:{title:'💡 Streetlight Not Working', status:'Working', desc:'Parts awaited from vendor.'},
-  pothole:{title:'🕳️ Large Pothole', status:'Resolved', desc:'Filled with gravel, leveled.'},
-};
-const mapCanvas = document.getElementById('mapCanvas');
-function showPopup(key){
-  const p = popups[key];
-  const marker = document.querySelector(`.map-marker[data-popup="${key}"]`);
-  const el = document.getElementById('mapPopup');
-  if(marker && mapCanvas){
-    // Computed from the marker's actual rendered position, not a fixed
-    // percentage, so the popup lands correctly however the map is panned/zoomed.
-    const canvasRect = mapCanvas.getBoundingClientRect();
-    const markerRect = marker.getBoundingClientRect();
-    el.style.left = `${markerRect.left - canvasRect.left + markerRect.width/2 + 16}px`;
-    el.style.top = `${markerRect.top - canvasRect.top - 70}px`;
-  }
-  el.style.display = 'block';
-  el.innerHTML = `<strong>${p.title}</strong>Status: ${p.status}<br><span style="color:var(--muted);">${p.desc}</span>`;
+// ---------- Community Map (Leaflet, real reports) ----------
+// #citizenMap used to be dead space: the JS that drew on it (`mapViewport`,
+// a hand-illustrated SVG, pan/zoom-by-CSS-transform) targeted DOM ids that
+// no longer exist in index.html, so nothing ever rendered — and the list
+// beside it was three hardcoded demo cards regardless of what was actually
+// reported. This replaces both with a real Leaflet map (matching the
+// officer dashboard's) and a list driven by CIVIC.reports.
+let citizenMap = null;
+let citizenMapMarkers = [];
+function citizenPinBucket(r){
+  return citizenStatusBucket(r.status)==='fixed' ? 'resolved' : (citizenStatusBucket(r.status)==='working' ? 'working' : 'open');
 }
-// ---------- Community Map filter & controls ----------
-const mapFilterRow = document.getElementById('mapFilterRow');
-if(mapFilterRow){
-  mapFilterRow.addEventListener('click', (e)=>{
-    const chip = e.target.closest('.fchip');
-    if(!chip) return;
-    document.querySelectorAll('#mapFilterRow .fchip').forEach(c=>c.classList.remove('active'));
-    chip.classList.add('active');
-    const mf = chip.dataset.mf;
-    document.querySelectorAll('.map-item').forEach(item=>{
-      item.style.display = (mf==='all' || item.dataset.status===mf) ? 'block' : 'none';
+function citizenPinColor(r){
+  return { open:'#c0392b', working:'#c9922b', resolved:'#1f7a4d' }[citizenPinBucket(r)];
+}
+function initCitizenMap(){
+  const el = document.getElementById('citizenMap');
+  if(!el || citizenMap || typeof L === 'undefined') return;
+  citizenMap = L.map('citizenMap').setView([23.3441, 85.3096], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(citizenMap);
+}
+let mapFilter = 'all';
+function renderCitizenMap(){
+  initCitizenMap();
+  renderMapList();
+  if(!citizenMap) return;
+  citizenMapMarkers.forEach(m=>citizenMap.removeLayer(m));
+  citizenMapMarkers = [];
+  CIVIC.reports.filter(r=>r.status!=='queued' && (mapFilter==='all' || citizenPinBucket(r)===mapFilter)).forEach(r=>{
+    const icon = L.divIcon({
+      html: `<div style="background:${citizenPinColor(r)}; width:18px; height:18px; border-radius:50%; border:2px solid white; box-shadow:0 2px 4px rgba(0,0,0,.3);"></div>`,
+      className: '', iconSize: [18,18], iconAnchor: [9,9]
     });
-    document.querySelectorAll('.map-marker').forEach(marker=>{
-      marker.style.display = (mf==='all' || marker.dataset.status===mf) ? 'flex' : 'none';
+    const marker = L.marker([r.lat, r.lng], { icon }).addTo(citizenMap);
+    marker.bindPopup(`<strong>${r.title}</strong><br>${wardInfo(r.ward).name} · ${r.category}<br><span style="text-transform:capitalize;">${citizenPinBucket(r)}</span>`);
+    marker._reportId = r.id;
+    citizenMapMarkers.push(marker);
+  });
+  if(typeof refreshAllHotspots==='function') refreshAllHotspots();
+}
+function renderMapList(){
+  const list = document.getElementById('mapItemList');
+  if(!list) return;
+  list.innerHTML = '';
+  const rows = CIVIC.reports.filter(r=>r.status!=='queued' && (mapFilter==='all' || citizenPinBucket(r)===mapFilter));
+  if(rows.length===0){
+    list.innerHTML = `<div class="inv-empty">No reports match this filter.</div>`;
+    return;
+  }
+  rows.forEach(r=>{
+    const bucket = citizenPinBucket(r);
+    const div = document.createElement('div');
+    div.className = 'map-item';
+    div.dataset.status = bucket;
+    div.innerHTML = `
+      <div class="map-item-top"><strong>${icons[r.category]||'📍'} ${r.title}</strong><span class="status-pill status-${bucket}">${bucket[0].toUpperCase()+bucket.slice(1)}</span></div>
+      <div class="loc">${wardInfo(r.ward).name}</div>
+      <p>${reportDescText(r)}</p>
+      <div class="foot">🕒 Reported ${formatDate(r.submittedAt)}</div>`;
+    div.addEventListener('click', ()=>{
+      if(!citizenMap) return;
+      citizenMap.setView([r.lat, r.lng], 15);
+      const marker = citizenMapMarkers.find(m=>m._reportId===r.id);
+      marker?.openPopup();
     });
-    const popup = document.getElementById('mapPopup');
-    if(popup) popup.style.display = 'none';
+    list.appendChild(div);
   });
 }
-const mapViewport = document.getElementById('mapViewport');
-renderHotspots(mapViewport);
-const pannableMap = (mapCanvas && mapViewport) ? makePannableMap(mapCanvas, mapViewport, {
-  onDragStart: ()=>{ const popup = document.getElementById('mapPopup'); if(popup) popup.style.display = 'none'; }
-}) : null;
-document.getElementById('mapZoomIn')?.addEventListener('click', ()=> pannableMap?.zoomIn());
-document.getElementById('mapZoomOut')?.addEventListener('click', ()=> pannableMap?.zoomOut());
-document.getElementById('mapRecenter')?.addEventListener('click', ()=> pannableMap?.recenter());
+document.getElementById('mapFilterRow')?.addEventListener('click', (e)=>{
+  const chip = e.target.closest('.fchip');
+  if(!chip) return;
+  document.querySelectorAll('#mapFilterRow .fchip').forEach(c=>c.classList.remove('active'));
+  chip.classList.add('active');
+  mapFilter = chip.dataset.mf;
+  renderCitizenMap();
+});
