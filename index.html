@@ -18,11 +18,24 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="CivicSetu">
 
-<link rel="stylesheet" href="css/app.css?v=22">
+<link rel="stylesheet" href="css/app.css?v=23">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700;800&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script>
+// Applied synchronously, before CSS/body render, so there is no flash of
+// the light theme on a dark-mode return visit. Kept deliberately tiny and
+// dependency-free — this runs before any other script has loaded.
+(function(){
+  try{
+    var saved = localStorage.getItem('civic_theme');
+    if(saved === 'dark' || saved === 'light'){
+      document.documentElement.setAttribute('data-theme', saved);
+    }
+  }catch(e){}
+})();
+</script>
 </head>
 <body>
 
@@ -110,6 +123,9 @@
         <button data-mode="dash">Dashboard</button>
       </div>
       <div class="lang-switch">
+        <button class="icon-btn" id="themeToggleBtn" title="Toggle dark mode" aria-pressed="false" aria-label="Toggle dark mode">🌙</button>
+      </div>
+      <div class="lang-switch">
         <button class="icon-btn" id="langBtn" title="Language — 22 Scheduled Languages" aria-haspopup="dialog" aria-label="Select Language">🌐</button>
       </div>
       <div class="lang-switch">
@@ -180,6 +196,16 @@
           <button id="confirmInstead" data-i18n="confirm_instead">Confirm instead</button>
         </div>
         <div class="routing-banner" id="routingBanner"></div>
+        <div class="visibility-row" id="visibilityRow" role="radiogroup" aria-label="Report visibility">
+          <button type="button" class="visibility-chip active" id="visPublicBtn" data-visibility="public" aria-pressed="true">
+            <span class="vis-ico">🌐</span>
+            <span class="vis-text"><strong data-i18n="visibility_public">Public</strong><small data-i18n="visibility_public_hint">Visible to everyone on the Community Map</small></span>
+          </button>
+          <button type="button" class="visibility-chip" id="visPrivateBtn" data-visibility="private" aria-pressed="false">
+            <span class="vis-ico">🔒</span>
+            <span class="vis-text"><strong data-i18n="visibility_private">Private</strong><small data-i18n="visibility_private_hint">Only you and officials can see this</small></span>
+          </button>
+        </div>
         <button class="submit-btn" id="submitBtn" disabled data-i18n="submit_report">SUBMIT REPORT</button>
       </div>
     </div>
@@ -959,23 +985,23 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="js/supabase-client.js?v=22"></script>
-<script src="js/data.js?v=22"></script>
-<script src="js/i18n.js?v=22"></script>
-<script src="js/accessibility.js?v=22"></script>
-<script src="js/geo-cluster.js?v=22"></script>
-<script src="js/vendor/tf.min.js?v=22"></script>
-<script src="js/vendor/mobilenet.min.js?v=22"></script>
-<script src="js/ml.js?v=22"></script>
-<script src="js/app.js?v=22"></script>
-<script src="js/citizen.js?v=22"></script>
-<script src="js/authority.js?v=22"></script>
-<script src="js/portfolio.js?v=22"></script>
-<script src="js/teambuilder.js?v=22"></script>
-<script src="js/investor.js?v=22"></script>
-<script src="js/policy.js?v=22"></script>
-<script src="js/badges.js?v=22"></script>
-<script src="js/chatbot.js?v=22"></script>
+<script src="js/supabase-client.js?v=23"></script>
+<script src="js/data.js?v=23"></script>
+<script src="js/i18n.js?v=23"></script>
+<script src="js/accessibility.js?v=23"></script>
+<script src="js/geo-cluster.js?v=23"></script>
+<script src="js/vendor/tf.min.js?v=23"></script>
+<script src="js/vendor/mobilenet.min.js?v=23"></script>
+<script src="js/ml.js?v=23"></script>
+<script src="js/app.js?v=23"></script>
+<script src="js/citizen.js?v=23"></script>
+<script src="js/authority.js?v=23"></script>
+<script src="js/portfolio.js?v=23"></script>
+<script src="js/teambuilder.js?v=23"></script>
+<script src="js/investor.js?v=23"></script>
+<script src="js/policy.js?v=23"></script>
+<script src="js/badges.js?v=23"></script>
+<script src="js/chatbot.js?v=23"></script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

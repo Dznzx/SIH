@@ -228,10 +228,10 @@ function findDuplicate(category, lat, lng){
 // drew on that map before re-rendering, so it's safe to call again after any
 // report mutation.
 const hotspotLayersByMap = new Map(); // Leaflet map instance -> L.circle[]
-function renderHotspotsOnMap(map){
+function renderHotspotsOnMap(map, publicOnly){
   if(!map || typeof L === 'undefined') return;
   (hotspotLayersByMap.get(map) || []).forEach(c => map.removeLayer(c));
-  const open = CIVIC.reports.filter(r=>r.status!=='resolved' && r.status!=='queued');
+  const open = CIVIC.reports.filter(r=>r.status!=='resolved' && r.status!=='queued' && (!publicOnly || r.visibility !== 'private'));
   const hotspots = GeoCluster.findHotspots(open, CIVIC.hotspot.radiusM, CIVIC.hotspot.minPts);
   const circles = hotspots.map(h=>{
     const catSummary = Object.entries(h.categories).map(([c,n])=>`${c} ×${n}`).join(', ');
@@ -253,8 +253,8 @@ function refreshAllHotspots(){
   // one still in its temporal dead zone throws a ReferenceError, not just
   // "undefined", so `typeof` alone isn't a safe guard here; wrap each in
   // try/catch and just skip it for this call if its script hasn't run yet.
-  try { if(typeof citizenMap !== 'undefined' && citizenMap) renderHotspotsOnMap(citizenMap); } catch(e){}
-  try { if(typeof dashMap !== 'undefined' && dashMap) renderHotspotsOnMap(dashMap); } catch(e){}
+  try { if(typeof citizenMap !== 'undefined' && citizenMap) renderHotspotsOnMap(citizenMap, true); } catch(e){}
+  try { if(typeof dashMap !== 'undefined' && dashMap) renderHotspotsOnMap(dashMap, false); } catch(e){}
 }
 
 // Fires whenever js/data.js merges fresh rows in from Supabase (initial
@@ -520,6 +520,31 @@ function closeDropdowns(exceptId){
 }
 document.addEventListener('click', ()=> closeDropdowns());
 
+// ===== DARK MODE =====
+// The actual theme was already applied pre-paint by the tiny inline script
+// in <head> (avoids a flash of the wrong theme on load) — this just wires
+// the toggle button up to match and persist further changes.
+const THEME_KEY = 'civic_theme';
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('themeToggleBtn');
+  if(btn){
+    btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    btn.setAttribute('aria-pressed', theme === 'dark');
+  }
+}
+function initThemeToggle(){
+  const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  applyTheme(current);
+  document.getElementById('themeToggleBtn')?.addEventListener('click', ()=>{
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    try{ localStorage.setItem(THEME_KEY, next); }catch(e){}
+    if(typeof announceToScreenReader === 'function') announceToScreenReader(next === 'dark' ? 'Dark mode enabled' : 'Light mode enabled');
+  });
+}
+initThemeToggle();
+
 // ===== GLOBE + ACCESSIBILITY BUTTONS =====
 // Runs after all scripts — guarantees langModal & a11yDrawer exist in DOM
 (function setupLangAndA11y(){
@@ -548,11 +573,28 @@ document.addEventListener('click', ()=> closeDropdowns());
     });
   }
 
-  // Escape closes both
+  // Escape closes ANY currently-open modal/drawer — not just lang+a11y.
+  // .modal-overlay covers tbModal/investorModal/policyModal/langModal/
+  // badgesModal; .portfolio-modal-overlay and #a11yDrawer are their own
+  // classes. Each already has its own close function for its own state
+  // cleanup (there isn't any beyond hiding, for any of them), but closing
+  // by directly clearing display here works uniformly without needing to
+  // know each one's function name.
   document.addEventListener('keydown', (e)=>{
-    if(e.key === 'Escape'){
-      if(langModal)  langModal.style.display  = 'none';
-      if(a11yDrawer) a11yDrawer.style.display = 'none';
-    }
+    if(e.key !== 'Escape') return;
+    document.querySelectorAll('.modal-overlay, .portfolio-modal-overlay').forEach(m=>{
+      if(getComputedStyle(m).display !== 'none') m.style.display = 'none';
+    });
+    if(a11yDrawer) a11yDrawer.style.display = 'none';
+  });
+
+  // Click-outside (on the overlay's own backdrop, not its content box)
+  // closes any .modal-overlay that doesn't already have its own such
+  // handler (langModal and badgesModal wire their own above/elsewhere).
+  document.querySelectorAll('.modal-overlay').forEach(overlay=>{
+    if(overlay.id === 'langModal' || overlay.id === 'badgesModal') return;
+    overlay.addEventListener('click', (e)=>{
+      if(e.target === overlay) overlay.style.display = 'none';
+    });
   });
 })();

@@ -44,7 +44,15 @@ const SB = (function () {
       resolvedAt: row.resolvedAt || null,
       timeline: row.timeline || [],
       comments: row.comments || [],
-      reporterEmail: row.reporterEmail || null
+      reporterEmail: row.reporterEmail || null,
+      userId: row.user_id || null,
+      visibility: row.visibility || 'public',
+      aiSummary: row.ai_summary || null,
+      aiCategory: row.ai_category || null,
+      aiDepartment: row.ai_department || null,
+      aiPriority: row.ai_priority || null,
+      aiNextSteps: row.ai_next_steps || null,
+      aiGeneratedAt: row.ai_generated_at || null
     };
   }
 
@@ -71,7 +79,13 @@ const SB = (function () {
       resolvedAt: r.resolvedAt || null,
       timeline: r.timeline || [],
       comments: r.comments || [],
-      reporterEmail: r.reporterEmail || null
+      reporterEmail: r.reporterEmail || null,
+      // user_id is NOT trusted from the client for authorization — RLS's
+      // `with check (user_id = auth.uid())` on INSERT is what actually
+      // enforces ownership. Sending it here just has to match the signed-in
+      // session, or the insert is rejected.
+      user_id: r.userId || null,
+      visibility: r.visibility === 'private' ? 'private' : 'public'
     };
   }
 
@@ -119,9 +133,30 @@ const SB = (function () {
     if ('resolvedAt' in patch) row.resolvedAt = patch.resolvedAt;
     if ('proofPhoto' in patch) row.proofPhoto = patch.proofPhoto;
     if ('confirms' in patch) row.confirms = patch.confirms;
+    if ('visibility' in patch) row.visibility = patch.visibility === 'private' ? 'private' : 'public';
+    if ('aiSummary' in patch) row.ai_summary = patch.aiSummary;
+    if ('aiCategory' in patch) row.ai_category = patch.aiCategory;
+    if ('aiDepartment' in patch) row.ai_department = patch.aiDepartment;
+    if ('aiPriority' in patch) row.ai_priority = patch.aiPriority;
+    if ('aiNextSteps' in patch) row.ai_next_steps = patch.aiNextSteps;
+    if ('aiGeneratedAt' in patch) row.ai_generated_at = patch.aiGeneratedAt;
     const { error, count } = await client.from('reports').update(row, { count: 'exact' }).eq('id', id);
     if (error) { console.error('SB.updateReport failed:', error.message); return { ok: false, reason: 'error', message: error.message }; }
     if (count === 0) { console.error('SB.updateReport matched 0 rows (RLS likely blocked it) for', id); return { ok: false, reason: 'blocked' }; }
+    return { ok: true };
+  }
+
+  // Confirming someone else's report ("3 similar issues nearby, confirm
+  // instead") is the one legitimate cross-owner write a citizen makes. RLS
+  // restricts direct UPDATEs to a report's own owner/an authority, so this
+  // goes through a SECURITY DEFINER RPC that can only ever increment
+  // `confirms` on a row the caller is allowed to see.
+  async function confirmReport(id) {
+    if (!client) return { ok: false, reason: 'offline' };
+    const session = await ensureSession();
+    if (!session) return { ok: false, reason: 'signed_out' };
+    const { error } = await client.rpc('confirm_report', { report_id: id });
+    if (error) { console.error('SB.confirmReport failed:', error.message); return { ok: false, reason: 'error', message: error.message }; }
     return { ok: true };
   }
 
@@ -136,5 +171,5 @@ const SB = (function () {
       .subscribe();
   }
 
-  return { client, listReports, insertReport, updateReport, subscribeReports };
+  return { client, listReports, insertReport, updateReport, confirmReport, subscribeReports };
 })();

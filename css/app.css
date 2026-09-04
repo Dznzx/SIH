@@ -16,6 +16,8 @@
     --line:#dfd9cb;
     --paper:#ebe6dc;
     --card:#ffffff;
+    --surface:#f2f0e8;
+    --surface-glass: rgba(255, 255, 255, 0.95);
     --font: "Plus Jakarta Sans", "Inter", -apple-system, "Segoe UI", sans-serif;
     --mono: "IBM Plex Mono", monospace;
 
@@ -56,6 +58,96 @@
       inset -2.5px -3px 5px rgba(180, 168, 150, 0.35);
   }
 
+  /* ===== DARK MODE =====
+     Distinct from .theme-high-contrast (the WCAG-AAA accessibility toggle,
+     which stays as-is) — this is the everyday dark theme, toggled by
+     #themeToggleBtn and persisted via localStorage (see js/app.js). It
+     redefines the same tokens almost everything in this stylesheet already
+     draws from (--ink, --muted, --line, --card, --paper, --surface, the
+     *-lt tint backgrounds, and the clay shadow set), so the vast majority of
+     the app recolors correctly without per-component rules. Applied as
+     [data-theme="dark"] on <html>. */
+  :root[data-theme="dark"]{
+    --green:#34c37c;
+    --green-dk:#7be3a8;
+    --green-lt:#0f2b1e;
+    --orange:#e0733b;
+    --orange-dk:#f0a06a;
+    --amber:#d9a648;
+    --amber-lt:#332a14;
+    --blue:#5b9bd8;
+    --blue-lt:#152535;
+    --red:#e0685a;
+    --red-lt:#341a17;
+    --ink:#eef1ec;
+    --muted:#98a29c;
+    --line:#333b36;
+    --paper:#14181a;
+    --card:#1d2224;
+    --surface:#242a2c;
+    --surface-glass: rgba(24, 28, 30, 0.88);
+
+    --clay-shadow-out: 0 16px 32px -8px rgba(0, 0, 0, 0.45), 0 6px 14px -3px rgba(0, 0, 0, 0.3);
+    --clay-shadow-card:
+      0 18px 36px -10px rgba(0, 0, 0, 0.5),
+      0 6px 16px -4px rgba(0, 0, 0, 0.32),
+      inset 2px 2px 4px rgba(255, 255, 255, 0.045),
+      inset -2px -2px 5px rgba(0, 0, 0, 0.4);
+    --clay-shadow-card-hover:
+      0 24px 44px -10px rgba(0, 0, 0, 0.55),
+      0 8px 20px -4px rgba(0, 0, 0, 0.35),
+      inset 2px 2px 5px rgba(255, 255, 255, 0.06),
+      inset -2px -2px 5px rgba(0, 0, 0, 0.4);
+    --clay-shadow-inset:
+      inset 3px 3px 7px rgba(0, 0, 0, 0.4),
+      inset -2px -2px 5px rgba(255, 255, 255, 0.04);
+    --clay-shadow-btn-primary:
+      0 10px 22px -5px rgba(224, 99, 43, 0.4),
+      0 4px 8px -2px rgba(224, 99, 43, 0.22),
+      inset 2px 2px 4px rgba(255, 255, 255, 0.15),
+      inset -2.5px -3px 6px rgba(0, 0, 0, 0.35);
+    --clay-shadow-btn-green:
+      0 10px 22px -5px rgba(52, 195, 124, 0.35),
+      0 4px 8px -2px rgba(52, 195, 124, 0.2),
+      inset 2px 2px 4px rgba(255, 255, 255, 0.15),
+      inset -2.5px -3px 6px rgba(0, 0, 0, 0.35);
+    --clay-shadow-btn-white:
+      0 8px 18px -4px rgba(0, 0, 0, 0.4),
+      0 3px 6px -2px rgba(0, 0, 0, 0.3),
+      inset 2px 2px 4px rgba(255, 255, 255, 0.06),
+      inset -2.5px -3px 5px rgba(0, 0, 0, 0.35);
+  }
+  :root[data-theme="dark"] body{
+    background:
+      radial-gradient(circle at 15% 10%, rgba(52,195,124,0.07), transparent 40%),
+      radial-gradient(circle at 85% 0%, rgba(217,166,72,0.06), transparent 45%),
+      radial-gradient(circle at 50% 100%, rgba(52,195,124,0.05), transparent 50%),
+      linear-gradient(180deg, #171c1e, var(--paper));
+  }
+  :root[data-theme="dark"] .topbar{
+    border-color: rgba(255,255,255,0.08);
+  }
+  :root[data-theme="dark"] .btn-report::after{ color:#0e1210; }
+  :root[data-theme="dark"] img{ opacity:0.92; }
+  /* Map tiles and photo thumbnails stay full-bright — dimming raster imagery
+     reads as broken assets, not as "dark mode". */
+  :root[data-theme="dark"] .leaflet-tile,
+  :root[data-theme="dark"] .report-thumb img,
+  :root[data-theme="dark"] .b-a-box img{ opacity:1; }
+  /* Form controls don't inherit --ink/--card the way most elements here do
+     (browsers give them their own default white-on-black-text rendering
+     regardless of surrounding CSS variables), so they need an explicit rule. */
+  :root[data-theme="dark"] input,
+  :root[data-theme="dark"] textarea,
+  :root[data-theme="dark"] select{
+    background: var(--surface);
+    color: var(--ink);
+    border-color: var(--line);
+  }
+  :root[data-theme="dark"] input::placeholder,
+  :root[data-theme="dark"] textarea::placeholder{ color: var(--muted); opacity:1; }
+  :root[data-theme="dark"] table{ color: var(--ink); }
+
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:var(--paper);}
   body{
@@ -76,7 +168,7 @@
   .topbar{
     display:flex; align-items:center; justify-content:space-between; gap: 16px;
     padding:12px 26px;
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--surface-glass);
     backdrop-filter: blur(12px);
     border: 1.5px solid rgba(255, 255, 255, 0.85);
     border-radius: 26px;
@@ -126,7 +218,7 @@
   .icon-btn{
     width:48px; height:48px; border-radius:50%;
     border: 1px solid rgba(255, 255, 255, 0.9);
-    background: #ffffff;
+    background:var(--card);
     display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px; color:var(--muted);
     position:relative;
     box-shadow: var(--clay-shadow-btn-white);
@@ -216,7 +308,7 @@
     box-shadow: inset 3px 3px 6px rgba(0,0,0,0.3), inset -2px -2px 4px rgba(255,255,255,0.3);
   }
   .btn-outline{
-    background: #ffffff;
+    background:var(--card);
     border: 1px solid rgba(255, 255, 255, 0.9);
     color:var(--ink);
     box-shadow: var(--clay-shadow-btn-white);
@@ -270,7 +362,7 @@
 
   /* Clay Capture Card */
   .capture-card{
-    background: #ffffff;
+    background:var(--card);
     border: 1.5px solid rgba(255, 255, 255, 0.9);
     border-radius: 24px; padding:32px;
     box-shadow: var(--clay-shadow-card);
@@ -331,7 +423,7 @@
     background: rgba(0, 0, 0, 0.08);
   }
   .cat-chip.sel{
-    background:#ffffff; color:var(--green-dk); border-color:#ffffff;
+    background:var(--card); color:var(--green-dk); border-color:#ffffff;
     box-shadow:
       0 8px 18px rgba(0, 0, 0, 0.22),
       inset 2.5px 2.5px 5px #ffffff,
@@ -351,14 +443,14 @@
     transition: all .2s ease;
   }
   .desc-input-row input:focus{
-    background: #ffffff;
+    background:var(--card);
     border-color: rgba(0, 0, 0, 0.2);
   }
   .desc-input-row input::placeholder{ color:rgba(0, 0, 0, 0.5); }
   .mic-btn{
     width:52px; height:52px; border-radius:14px;
     border: 1.5px solid rgba(0, 0, 0, 0.1);
-    background: #ffffff;
+    background:var(--card);
     cursor:pointer; font-size:20px; color:var(--ink); flex-shrink:0;
     box-shadow:
       0 6px 14px rgba(0,0,0,0.08),
@@ -385,7 +477,7 @@
   }
   .dupe-alert.show{ display:flex; }
   .dupe-alert button{
-    margin-left:auto; background:#ffffff; color:var(--green-dk); border:none;
+    margin-left:auto; background:var(--card); color:var(--green-dk); border:none;
     padding:7px 12px; border-radius:var(--clay-pill-radius); font-size:11.5px; font-weight:800;
     cursor:pointer; white-space:nowrap;
     box-shadow: 0 4px 10px rgba(0,0,0,0.15), inset 1.5px 1.5px 3px #fff, inset -1.5px -1.5px 3px rgba(0,0,0,0.1);
@@ -393,7 +485,7 @@
 
   .submit-btn{
     width:100%; margin-top:16px;
-    background: #ffffff;
+    background:var(--card);
     color:var(--green-dk); border:none; padding:14px;
     border-radius: 14px; font-weight:800; font-size:15px; letter-spacing:.5px; cursor:pointer;
     box-shadow:
@@ -404,7 +496,7 @@
   }
   .submit-btn:hover:not(:disabled){
     transform: translateY(-2px) scale(1.02);
-    background: #ffffff;
+    background:var(--card);
     box-shadow: 0 12px 26px rgba(0, 0, 0, 0.28), inset 3px 3px 6px #ffffff, inset -3px -3px 6px rgba(0, 0, 0, 0.12);
   }
   .submit-btn:active:not(:disabled){
@@ -423,7 +515,7 @@
   @media (max-width:900px){ .quick-grid{ grid-template-columns:repeat(2,1fr); } }
   @media (max-width:540px){ .quick-grid{ grid-template-columns:1fr; } }
   .quick-tile{
-    background: #ffffff;
+    background:var(--card);
     border: 1.5px solid rgba(255, 255, 255, 0.9);
     border-radius: 24px; padding:22px; cursor:pointer;
     box-shadow: var(--clay-shadow-card);
@@ -458,7 +550,7 @@
 
   /* ===== CARD (Clay Base) ===== */
   .card{
-    background: #ffffff;
+    background:var(--card);
     border: 1.5px solid rgba(255, 255, 255, 0.9);
     border-radius: var(--clay-card-radius);
     padding:24px;
@@ -569,7 +661,7 @@
   .filter-row{ display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
   .fchip{
     border: 1.5px solid rgba(255, 255, 255, 0.9);
-    background: #ffffff; padding:9px 18px; border-radius:var(--clay-pill-radius);
+    background:var(--card); padding:9px 18px; border-radius:var(--clay-pill-radius);
     font-size:13px; font-weight:800; cursor:pointer; color:var(--muted);
     box-shadow: var(--clay-shadow-btn-white);
     transition: all .2s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -589,7 +681,7 @@
   }
 
   .report-card{
-    background: #ffffff;
+    background:var(--card);
     border: 1.5px solid rgba(255, 255, 255, 0.9);
     border-radius: 22px; padding:18px; margin-bottom:16px;
     display:grid; grid-template-columns:160px 1fr; gap:18px; cursor:pointer;
@@ -618,6 +710,7 @@
   .report-body h4{ margin:0 0 6px; font-size:16.5px; font-weight:800; }
   .report-body p{ margin:0 0 10px; font-size:13.5px; color:#4a524e; line-height:1.5; font-weight:500; }
   .report-foot{ font-size:12px; color:var(--muted); margin-top:auto; display:flex; align-items:center; gap:6px; font-weight:600; }
+  .report-ai-summary{ font-size:12px; color:var(--muted); margin:2px 0 6px; line-height:1.4; }
 
   .load-more{
     width:100%; padding:14px; border-radius:16px;
@@ -640,7 +733,7 @@
     box-shadow: var(--clay-shadow-card);
   }
   @media (max-width:900px){ .map-shell{ grid-template-columns:1fr; height:auto; } }
-  .map-side{ background:#ffffff; padding:20px; overflow-y:auto; border-right:1.5px solid var(--line); }
+  .map-side{ background:var(--card); padding:20px; overflow-y:auto; border-right:1.5px solid var(--line); }
   .search-box{
     display:flex; align-items:center; gap:10px;
     border: none;
@@ -677,7 +770,7 @@
   .map-canvas.dragging{ cursor:grabbing; }
   .map-viewport{ position:absolute; inset:0; transform-origin:center center; }
   .map-svg-bg{ position:absolute; inset:0; width:100%; height:100%; display:block; }
-  .map-road{ position:absolute; background:#ffffff; box-shadow:0 0 0 1px #d4cec0, 0 4px 8px rgba(0,0,0,0.06); }
+  .map-road{ position:absolute; background:var(--card); box-shadow:0 0 0 1px #d4cec0, 0 4px 8px rgba(0,0,0,0.06); }
   .map-marker{
     position:absolute; width:40px; height:40px; border-radius:50% 50% 50% 0; transform:translate(-50%,-100%) rotate(-45deg);
     display:flex; align-items:center; justify-content:center; cursor:pointer;
@@ -698,7 +791,7 @@
   .map-marker.green{ background: linear-gradient(145deg, #28a063, #155e3a); }
 
   .map-popup{
-    position:absolute; background:#ffffff; border-radius:18px; padding:14px 16px;
+    position:absolute; background:var(--card); border-radius:18px; padding:14px 16px;
     box-shadow:
       0 20px 40px -10px rgba(0,0,0,0.25),
       inset 3px 3px 6px #ffffff,
@@ -710,7 +803,7 @@
   .map-popup strong{ display:block; font-size:14px; margin-bottom:4px; font-weight:800; }
   .map-controls{ position:absolute; right:18px; top:18px; display:flex; flex-direction:column; gap:8px; z-index:4;}
   .map-controls button{
-    width:38px; height:38px; border-radius:12px; border:1px solid rgba(255,255,255,0.9); background:#ffffff;
+    width:38px; height:38px; border-radius:12px; border:1px solid rgba(255,255,255,0.9); background:var(--card);
     cursor:pointer; font-size:16px; font-weight:800;
     box-shadow: var(--clay-shadow-btn-white);
     transition: all .2s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -719,7 +812,7 @@
   .map-controls button:active{ transform: scale(0.94); box-shadow: var(--clay-shadow-inset); }
 
   .map-legend{
-    position:absolute; left:18px; bottom:18px; background:#ffffff; border-radius:14px; padding:10px 16px;
+    position:absolute; left:18px; bottom:18px; background:var(--card); border-radius:14px; padding:10px 16px;
     font-size:12px; font-weight:700;
     box-shadow:
       0 10px 22px -5px rgba(60, 50, 40, 0.15),
@@ -758,7 +851,7 @@
   @media (max-width:700px){ .ba-grid{ grid-template-columns:1fr; } }
   .ba-box{
     border: 1.5px solid rgba(255, 255, 255, 0.9);
-    border-radius: 20px; overflow:hidden; background:#ffffff;
+    border-radius: 20px; overflow:hidden; background:var(--card);
     box-shadow: var(--clay-shadow-card);
   }
   .ba-box img{ width:100%; height:200px; object-fit:cover; display:block; }
@@ -833,7 +926,7 @@
   .kpi-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-bottom:26px; }
   @media (max-width:820px){ .kpi-row{ grid-template-columns:repeat(2,1fr); } }
   .kpi{
-    background: #ffffff;
+    background:var(--card);
     border: 1.5px solid rgba(255, 255, 255, 0.9);
     border-radius: 20px; padding:18px 20px;
     box-shadow: var(--clay-shadow-card);
@@ -883,7 +976,7 @@
   .qactions{ display:flex; gap:8px; flex-shrink:0; }
   .qactions button{
     border: 1px solid rgba(255, 255, 255, 0.9);
-    background:#ffffff; font-size:11px; padding:6px 10px; border-radius:10px;
+    background:var(--card); font-size:11px; padding:6px 10px; border-radius:10px;
     cursor:pointer; font-weight:800;
     box-shadow: var(--clay-shadow-btn-white);
     transition: all .15s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -953,7 +1046,7 @@
   /* Step 3: explainable priority score breakdown */
   .why-panel{
     display:none; width:100%; margin-top:10px; padding:12px 14px;
-    background:#ffffff; border:1px solid var(--line); border-radius:12px;
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
     font-family:var(--mono); font-size:12.5px; color:var(--ink);
   }
   .why-panel.show{ display:block; }
@@ -1055,7 +1148,7 @@
   .lang-switch{ position:relative; }
   .lang-menu{
     display:none; position:absolute; top:calc(100% + 8px); right:0; z-index:60;
-    background:#ffffff; border:1.5px solid rgba(255,255,255,0.9); border-radius:14px;
+    background:var(--card); border:1.5px solid rgba(255,255,255,0.9); border-radius:14px;
     padding:6px; min-width:150px; box-shadow: var(--clay-shadow-card);
     flex-direction:column; gap:2px;
   }
@@ -1098,6 +1191,58 @@
   }
   .routing-banner.show{ display:flex; }
 
+  /* ===== Report visibility (public/private) toggle ===== */
+  .visibility-row{ display:flex; gap:10px; margin-top:14px; }
+  .visibility-chip{
+    flex:1; display:flex; align-items:center; gap:10px; text-align:left;
+    padding:10px 12px; border-radius:14px; border:1.5px solid var(--line);
+    background:var(--surface, #fff); cursor:pointer; font-family:var(--font);
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .visibility-chip .vis-ico{ font-size:18px; flex-shrink:0; }
+  .visibility-chip .vis-text{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+  .visibility-chip strong{ font-size:13px; color:var(--ink); }
+  .visibility-chip small{ font-size:11px; color:var(--muted); font-weight:600; line-height:1.3; }
+  .visibility-chip.active{ border-color:var(--green); background:var(--green-lt); }
+  .visibility-chip.active strong{ color:var(--green-dk); }
+  .visibility-chip:hover{ border-color:var(--green); }
+  .visibility-badge{
+    display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:800;
+    padding:3px 8px; border-radius:99px; text-transform:uppercase; letter-spacing:.02em;
+  }
+  .visibility-badge.is-public{ background:var(--green-lt); color:var(--green-dk); }
+  .visibility-badge.is-private{ background:rgba(0,0,0,0.06); color:var(--muted); }
+
+  /* ===== Generic modal (Team Builder, Investor intro, Policy, Language, Badges) =====
+     .modal-overlay/.modal-content/.modal-header/.modal-body/.modal-close were used
+     across several views but never had a CSS definition — they rendered as unstyled
+     inline blocks in normal document flow instead of centered overlays. */
+  .modal-overlay{
+    position:fixed; inset:0; z-index:2000; display:none;
+    align-items:center; justify-content:center; padding:20px;
+    background:rgba(20,24,20,0.55); backdrop-filter:blur(2px);
+  }
+  .modal-content{
+    background:var(--card, #fff); border-radius:20px; width:100%; max-width:520px;
+    max-height:88vh; overflow-y:auto; box-shadow:0 24px 60px rgba(0,0,0,0.3);
+    padding:22px;
+  }
+  .modal-header{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin-bottom:16px;
+  }
+  .modal-header h2, .modal-header h3{ margin:0; font-size:18px; font-weight:800; color:var(--ink); }
+  .modal-close{
+    border:none; background:rgba(0,0,0,0.06); color:var(--ink); width:30px; height:30px;
+    border-radius:50%; font-size:15px; cursor:pointer; flex-shrink:0; line-height:1;
+  }
+  .modal-close:hover{ background:rgba(0,0,0,0.12); }
+  .modal-body{ font-size:14px; color:var(--ink); }
+  .modal-footer{ display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+  @media (max-width:640px){
+    .modal-content{ max-width:100%; max-height:92vh; padding:18px; }
+  }
+
   /* ===== Step 9: Authority "diagnostic instrument" design pass =====
      DESIGN.md: 0px corners everywhere, zero shadows, hairline borders only,
      mono for all machine data, dense padding. Scoped to #view-dash for
@@ -1110,6 +1255,19 @@
     --s-warn:#a86800; --s-warn-bg:#fff2d6;
     --s-ok:#248b57; --s-ok-bg:#e4f4ec;
     --s-idle:#76777d; --s-idle-bg:#eceef0;
+  }
+  /* The Authority dashboard is a deliberately distinct "diagnostic
+     instrument" design system (DESIGN.md: flat, hairline-bordered, mono
+     data) with its own a- and s-prefixed token set, separate from the
+     citizen UI's clay tokens — so it needs its own dark variants rather
+     than inheriting the ones above. */
+  :root[data-theme="dark"]{
+    --a-ink:#e9ecee; --a-ink-soft:#a3a9ad; --a-line:#33383b;
+    --a-surface:#15181a; --a-card:#1c2022; --a-hover:#24292c;
+    --s-critical:#ff6b5e; --s-critical-bg:#3a1714;
+    --s-warn:#e0a83c; --s-warn-bg:#332708;
+    --s-ok:#3ddc84; --s-ok-bg:#0f2b1e;
+    --s-idle:#8b9195; --s-idle-bg:#212528;
   }
 
   #view-dash{ background:var(--a-surface); border-radius:0; }
@@ -1205,7 +1363,7 @@
     padding:24px;
   }
   .auth-card{
-    background:#ffffff; border-radius:24px; padding:36px 34px; max-width:380px; width:100%;
+    background:var(--card); border-radius:24px; padding:36px 34px; max-width:380px; width:100%;
     box-shadow: 0 30px 60px -12px rgba(0,0,0,0.4);
   }
   .auth-badge{
@@ -1215,7 +1373,7 @@
   .auth-card h1{ font-size:24px; margin:0 0 18px; }
   .auth-role-row{ display:flex; gap:8px; margin-bottom:18px; }
   .auth-role-btn{
-    flex:1; border:1.5px solid var(--line); background:#fff; border-radius:12px; padding:10px;
+    flex:1; border:1.5px solid var(--line); background:var(--card); border-radius:12px; padding:10px;
     font-weight:800; font-size:13px; cursor:pointer; color:var(--muted);
   }
   .auth-role-btn.active{ background:var(--green-lt); border-color:var(--green); color:var(--green-dk); }
@@ -1250,7 +1408,7 @@
   .navlinks {
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    background: rgba(255, 255, 255, 0.95);
+    background: var(--surface-glass);
     backdrop-filter: blur(12px);
     border-top: 1px solid rgba(0,0,0,0.1);
     display: flex;
@@ -1295,7 +1453,7 @@
 .is-mobile .navlinks {
   position: fixed;
   bottom: 0; left: 0; right: 0;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--surface-glass);
   backdrop-filter: blur(12px);
   border-top: 1px solid rgba(0,0,0,0.1);
   display: flex;
@@ -2450,7 +2608,7 @@
 .cbot-fab:hover{ transform:scale(1.06); }
 .cbot-panel{
   position:absolute; right:0; bottom:70px; width:340px; max-width:calc(100vw - 32px);
-  height:460px; max-height:70vh; background:#fff; border-radius:18px;
+  height:460px; max-height:70vh; background:var(--card); border-radius:18px;
   box-shadow:0 24px 48px rgba(0,0,0,0.28); overflow:hidden;
   flex-direction:column; border:1px solid var(--line);
 }
@@ -2465,12 +2623,12 @@
 .cbot-msg.cbot-user{ justify-content:flex-end; }
 .cbot-bubble{
   max-width:85%; padding:9px 12px; border-radius:14px; font-size:13px; line-height:1.45;
-  background:#fff; border:1px solid var(--line); color:var(--ink);
+  background:var(--card); border:1px solid var(--line); color:var(--ink);
 }
 .cbot-user .cbot-bubble{ background:var(--green); color:#fff; border-color:var(--green); }
 .cbot-typing .cbot-bubble{ color:var(--muted); font-style:italic; }
 .cbot-inputrow{
-  display:flex; gap:8px; padding:10px; border-top:1px solid var(--line); background:#fff; flex-shrink:0;
+  display:flex; gap:8px; padding:10px; border-top:1px solid var(--line); background:var(--card); flex-shrink:0;
 }
 .cbot-inputrow input{
   flex:1; border:1.5px solid var(--line); border-radius:10px; padding:9px 11px; font-size:13px; font-family:var(--font);

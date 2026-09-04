@@ -219,7 +219,20 @@ function resetCaptureForm(){
   document.getElementById('dupeAlert').classList.remove('show');
   submitBtn.textContent = t('submit_report');
   submitBtn.disabled = true;
+  setReportVisibility('public');
 }
+
+// ---------- Report visibility (public/private) ----------
+let reportVisibility = 'public';
+function setReportVisibility(v){
+  reportVisibility = v;
+  document.getElementById('visPublicBtn')?.classList.toggle('active', v==='public');
+  document.getElementById('visPublicBtn')?.setAttribute('aria-pressed', v==='public');
+  document.getElementById('visPrivateBtn')?.classList.toggle('active', v==='private');
+  document.getElementById('visPrivateBtn')?.setAttribute('aria-pressed', v==='private');
+}
+document.getElementById('visPublicBtn')?.addEventListener('click', ()=> setReportVisibility('public'));
+document.getElementById('visPrivateBtn')?.addEventListener('click', ()=> setReportVisibility('private'));
 function showRoutingBanner(text){
   const el = document.getElementById('routingBanner');
   el.textContent = text;
@@ -247,6 +260,46 @@ function nextReportSeq(){
   });
   return max + 1;
 }
+// ---------- AI auto-processing (api/analyze-report.js, Groq) ----------
+// Runs after a report is already saved to Supabase — never on the critical
+// path of report creation. Writes AI fields back through the citizen's own
+// authenticated session, so RLS's normal owner-or-authority UPDATE check
+// applies exactly like any other edit to that report.
+async function runAiAutoProcessing(report){
+  try{
+    const res = await fetch('/api/analyze-report', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        title: report.title,
+        description: report.title,
+        category: report.category,
+        ward: wardInfo(report.ward).name
+      })
+    });
+    if(!res.ok) return;
+    const data = await res.json();
+    if(!data.ok || !data.ai) return;
+    const patch = {
+      aiSummary: data.ai.summary || null,
+      aiCategory: data.ai.category || null,
+      aiDepartment: data.ai.department || null,
+      aiPriority: data.ai.priority || null,
+      aiNextSteps: data.ai.next_steps || null,
+      aiGeneratedAt: new Date().toISOString()
+    };
+    // Reflect locally right away so "My Reports"/Track Progress show it
+    // without waiting for a realtime round trip.
+    Object.assign(report, patch);
+    if(typeof renderReports === 'function') renderReports(reportsFilter);
+    if(typeof SB !== 'undefined' && SB.client){
+      SB.updateReport(report.id, patch).catch(()=>{});
+    }
+  } catch(e){
+    console.error('AI auto-processing failed (report already saved, no impact):', e.message || e);
+  }
+}
+
 submitBtn.addEventListener('click', ()=>{
   submitBtn.disabled = true;
 
@@ -255,8 +308,13 @@ submitBtn.addEventListener('click', ()=>{
     renderQueue();
     showToast(`Confirmed existing issue ${dupeAnchor.id} — now ${dupeAnchor.confirms} confirmations`, 2200);
     pushNotification('🔁', `Confirmed existing issue ${dupeAnchor.id} — now ${dupeAnchor.confirms} confirmations`);
+    // Confirming someone else's report is the one legitimate cross-owner
+    // write a citizen can make — it goes through the confirm_report RPC
+    // (which only ever increments `confirms` on a visible row) rather than
+    // the general updateReport path, which RLS now restricts to the
+    // report's own owner or an authority.
     if(typeof SB !== 'undefined' && SB.client){
-      SB.updateReport(dupeAnchor.id, { confirms: dupeAnchor.confirms }).then(result=>{
+      SB.confirmReport(dupeAnchor.id).then(result=>{
         const msg = syncFailureMessage(result);
         if(msg) showToast(msg, 5000);
       });
@@ -295,7 +353,9 @@ submitBtn.addEventListener('click', ()=>{
       proofPhoto: null,
       timeline: [],
       comments: [],
-      reporterEmail: currentUser?.email || null
+      reporterEmail: currentUser?.email || null,
+      userId: currentUser?.id || null,
+      visibility: reportVisibility
     };
     ensureTimeline(newReport);
     CIVIC.reports.unshift(newReport);
@@ -325,6 +385,12 @@ submitBtn.addEventListener('click', ()=>{
           if(msg){
             console.error('Report saved locally but failed to sync to Supabase:', newReport.id, result);
             showToast(msg, 6000);
+          } else {
+            // Fire-and-forget: the report already exists in Supabase and is
+            // fully usable without this. A failure here (no GROQ_API_KEY,
+            // network issue, bad JSON from the model) just leaves the ai_*
+            // columns null — never blocks or undoes report creation.
+            runAiAutoProcessing(newReport);
           }
         });
       }
@@ -389,13 +455,26 @@ function buildThumb(url, altText){
   return box;
 }
 let reportsFilter = 'all';
-// "My Reports" must actually mean the signed-in citizen's own reports — old
-// reports predating this field (or ones synced before a reporterEmail was
-// ever recorded) have no owner on file, so they're shown too rather than
-// disappearing silently; anything with a *different* owner is excluded.
+// "My Reports" must actually mean the signed-in citizen's own reports.
+// userId (the Supabase auth id, verified by RLS on insert — never
+// client-spoofable) is the authoritative match; reporterEmail is a legacy
+// fallback for rows written before ownership was tracked, and reports with
+// neither field on file (old seed/demo data) are shown to everyone rather
+// than disappearing silently. Anything with a *different* owner is excluded.
 function myReports(){
+  const uid = (typeof currentUser !== 'undefined' && currentUser?.id) || null;
   const email = (typeof currentUser !== 'undefined' && currentUser?.email) || null;
-  return CIVIC.reports.filter(r => !r.reporterEmail || r.reporterEmail === email);
+  return CIVIC.reports.filter(r => {
+    if(r.userId) return r.userId === uid;
+    return !r.reporterEmail || r.reporterEmail === email;
+  });
+}
+// Whether a report belongs in citizen-facing PUBLIC surfaces (Community Map,
+// Completed Projects gallery) — private reports are RLS-readable by their
+// own owner, but must never appear outside "My Reports" for that owner
+// either, per the public/private feature's own definition.
+function isPublicVisible(r){
+  return r.visibility !== 'private';
 }
 function renderReports(filter){
   reportsFilter = filter || reportsFilter;
@@ -415,13 +494,20 @@ function renderReports(filter){
     thumb.appendChild(badge);
     div.appendChild(thumb);
 
+    const visBadge = r.visibility === 'private'
+      ? `<span class="visibility-badge is-private">🔒 Private</span>`
+      : `<span class="visibility-badge is-public">🌐 Public</span>`;
+    const aiRow = r.aiSummary
+      ? `<div class="report-ai-summary">🤖 <em>${r.aiSummary}</em></div>`
+      : '';
     const body = document.createElement('div');
     body.className = 'report-body';
     body.innerHTML = `
       <div class="report-top"><span>🗓️ Submitted: ${formatDate(r.submittedAt)}</span><span>ID: ${r.id}</span></div>
       <h4>${r.title}</h4>
       <p>${reportDescText(r)}</p>
-      <div class="report-foot">${reportFootText(r)}</div>`;
+      ${aiRow}
+      <div class="report-foot">${reportFootText(r)} · ${visBadge}</div>`;
     div.appendChild(body);
 
     list.appendChild(div);
@@ -451,7 +537,7 @@ function updateReportCounts(){
 function renderResolvedGallery(){
   const grid = document.getElementById('resolvedGallery');
   if(!grid) return;
-  const resolved = CIVIC.reports.filter(r=>r.status==='resolved');
+  const resolved = CIVIC.reports.filter(r=>r.status==='resolved' && isPublicVisible(r));
   if(resolved.length===0){
     grid.innerHTML = `<div class="inv-empty">No completed projects yet — resolved reports will appear here.</div>`;
     return;
@@ -618,7 +704,7 @@ function renderCitizenMap(){
   if(!citizenMap) return;
   citizenMapMarkers.forEach(m=>citizenMap.removeLayer(m));
   citizenMapMarkers = [];
-  CIVIC.reports.filter(r=>r.status!=='queued' && (mapFilter==='all' || citizenPinBucket(r)===mapFilter)).forEach(r=>{
+  CIVIC.reports.filter(r=>r.status!=='queued' && isPublicVisible(r) && (mapFilter==='all' || citizenPinBucket(r)===mapFilter)).forEach(r=>{
     const icon = L.divIcon({
       html: `<div style="background:${citizenPinColor(r)}; width:18px; height:18px; border-radius:50%; border:2px solid white; box-shadow:0 2px 4px rgba(0,0,0,.3);"></div>`,
       className: '', iconSize: [18,18], iconAnchor: [9,9]
@@ -634,7 +720,7 @@ function renderMapList(){
   const list = document.getElementById('mapItemList');
   if(!list) return;
   list.innerHTML = '';
-  const rows = CIVIC.reports.filter(r=>r.status!=='queued' && (mapFilter==='all' || citizenPinBucket(r)===mapFilter));
+  const rows = CIVIC.reports.filter(r=>r.status!=='queued' && isPublicVisible(r) && (mapFilter==='all' || citizenPinBucket(r)===mapFilter));
   if(rows.length===0){
     list.innerHTML = `<div class="inv-empty">No reports match this filter.</div>`;
     return;
