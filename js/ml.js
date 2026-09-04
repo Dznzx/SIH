@@ -134,12 +134,14 @@ const CivicML = (function(){
 
     let suggestion = null;
     let source = 'heuristic';
+    let topPrediction = null;
     try{
       const model = await Promise.race([
         loadModel(),
         new Promise((_, reject)=> setTimeout(()=>reject(new Error('model load timeout')), 6000))
       ]);
       const predictions = await model.classify(img, 5);
+      if(predictions[0]) topPrediction = { className: predictions[0].className, probability: predictions[0].probability };
       const hit = suggestCategory(predictions);
       if(hit && hit.confidence >= CONFIDENCE_FLOOR){
         suggestion = hit;
@@ -153,8 +155,45 @@ const CivicML = (function(){
 
     const baseline = (typeof categoryBaseline === 'number') ? categoryBaseline : 0.5;
     const severity = estimateSeverity(baseline, heuristics);
+    const relevance = checkRelevance(topPrediction);
 
-    return { suggestion, severity, source };
+    return { suggestion, severity, source, relevance };
+  }
+
+  // Photo relevance check — "does this even look like a civic issue?"
+  // There is no vision LLM available on this project's Groq tier/account
+  // (tried meta-llama/llama-4-scout, confirmed 404 model_not_found; the
+  // account's full model list has zero multimodal models right now), so
+  // this reuses the same on-device MobileNet classification already run
+  // above instead of a second network round trip that would just fail.
+  // MobileNet has no "pothole"/"garbage" class to positively confirm
+  // relevance against (see file header), so this only flags the opposite:
+  // high-confidence predictions of things that are obviously NOT a civic
+  // issue. Low-confidence or ambiguous predictions stay silent — a missed
+  // warning is far better than wrongly flagging a real, legitimate photo.
+  const CLEARLY_UNRELATED = [
+    'cat','kitten','tabby','persian cat','siamese cat','egyptian cat',
+    'dog','puppy','retriever','terrier','spaniel','poodle','shepherd','husky',
+    'bird','hen','cock','peacock','parrot','ostrich',
+    'person','groom','bridegroom',
+    'laptop','notebook computer','desktop computer','computer keyboard','computer mouse',
+    'cellular telephone','remote control','television','monitor','screen',
+    'plate','pizza','ice cream','cheeseburger','hot dog','banana','orange','pretzel','bagel','soup bowl',
+    'necktie','bow tie','sunglasses','sunglass','sombrero','cowboy hat',
+    'guitar','piano','violin','trumpet','drum',
+    'sports car','racer','convertible','limousine',
+    'teddy bear','rubber eraser','pencil sharpener','ballpoint',
+    'book jacket','comic book','menu','website',
+    'sofa','couch','four-poster','studio couch',
+    'coffee mug','cup','teapot','wine bottle','beer bottle'
+  ];
+  const RELEVANCE_CONFIDENCE_FLOOR = 0.35;
+  function checkRelevance(topPrediction){
+    if(!topPrediction || topPrediction.probability < RELEVANCE_CONFIDENCE_FLOOR) return null;
+    const label = topPrediction.className.toLowerCase();
+    const match = CLEARLY_UNRELATED.find(k => label.includes(k));
+    if(!match) return null;
+    return { likelyUnrelated: true, detected: topPrediction.className, confidence: topPrediction.probability };
   }
 
   return { analyzePhoto, loadModel };

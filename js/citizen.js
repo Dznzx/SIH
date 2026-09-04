@@ -69,11 +69,14 @@ function stampPhotoWithGeotag(dataUrl){
   });
 }
 
-// ---------- AI photo relevance check (api/analyze-photo.js, Groq vision) ----------
-// Flags a photo that doesn't actually show a civic issue (a selfie, a
-// random object, a screenshot) before the citizen submits it. Never blocks
-// submission — it's a warning, not a gate, since the model can be wrong
-// and offline/no-key states must still let people report issues.
+// ---------- AI photo relevance check ----------
+// Flags a photo that doesn't actually show a civic issue (a pet, a person,
+// a random household object) before the citizen submits it. Never blocks
+// submission — it's a warning, not a gate. Runs via the on-device MobileNet
+// classification in js/ml.js (see checkRelevance() there for why this
+// isn't a vision-LLM call: the connected Groq project has no multimodal
+// model available on it right now, confirmed via a live 404 model_not_found
+// rather than assumed).
 const photoWarningEl = (function(){
   const el = document.createElement('div');
   el.className = 'photo-relevance-warning';
@@ -87,23 +90,6 @@ function showPhotoWarning(msg){
 }
 function hidePhotoWarning(){
   photoWarningEl.style.display = 'none';
-}
-function runPhotoVisionCheck(dataUrl){
-  hidePhotoWarning();
-  fetch('/api/analyze-photo', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ imageDataUrl: dataUrl, category: catSelected })
-  })
-    .then(res => res.ok ? res.json() : null)
-    .then(data => {
-      if(dataUrl !== capturedPhotoData) return; // a newer photo replaced this one meanwhile
-      if(!data || !data.ok) return; // offline/no-key/error — stay silent, never block
-      if(data.relevant === false){
-        showPhotoWarning(data.message || `This photo doesn't look like a civic issue (looks like: ${data.subject || 'something else'}). You can still submit, but a clearer photo helps officials act faster.`);
-      }
-    })
-    .catch(()=>{ /* network failure — stay silent, never block submission */ });
 }
 
 captureBox.addEventListener('click', ()=> photoInput.click());
@@ -123,7 +109,6 @@ photoInput.addEventListener('change', ()=>{
       captureBox.querySelector('.cam-label').textContent = t('photo_captured');
       checkReady();
       runPhotoAnalysis(capturedPhotoData);
-      runPhotoVisionCheck(capturedPhotoData);
     });
   };
   reader.readAsDataURL(file);
@@ -138,6 +123,7 @@ photoInput.addEventListener('change', ()=>{
 function runPhotoAnalysis(dataUrl){
   mlSeverityEstimate = null;
   aiSuggestedCategory = null;
+  hidePhotoWarning();
   if(typeof CivicML === 'undefined'){ aiSuggestEl.classList.remove('show'); return; }
   aiSuggestEl.className = 'ai-suggest show';
   aiSuggestEl.innerHTML = `<span class="spinner"></span><span>Analyzing photo…</span>`;
@@ -146,6 +132,9 @@ function runPhotoAnalysis(dataUrl){
   CivicML.analyzePhoto(dataUrl, baseline).then(result=>{
     if(thisPhoto !== capturedPhotoData) return; // a newer photo was captured meanwhile
     mlSeverityEstimate = result.severity;
+    if(result.relevance?.likelyUnrelated){
+      showPhotoWarning(`This photo looks like it might show ${result.relevance.detected} rather than a civic issue. You can still submit, but a clearer photo of the actual problem helps officials act faster.`);
+    }
     if(result.suggestion){
       aiSuggestedCategory = result.suggestion.category;
       const pct = Math.round(result.suggestion.confidence * 100);
