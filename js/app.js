@@ -423,6 +423,9 @@ function goto(name){
     renderCitizenMap();
     setTimeout(()=> citizenMap?.invalidateSize(), 100);
   }
+  if(name==='home' && typeof citizenWardMap!=='undefined'){
+    setTimeout(()=> citizenWardMap?.invalidateSize(), 100);
+  }
 }
 document.querySelectorAll('.navlinks a').forEach(a=>{
   a.addEventListener('click', ()=>{
