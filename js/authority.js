@@ -430,3 +430,9 @@ dashTabsEl.addEventListener('click', (e)=>{
   if(!chip) return;
   setDashTab(chip.dataset.dashtab);
 });
+// setDashTab() is what actually initializes Leaflet into #wardMap and calls
+// invalidateSize() — it only ever ran from a chip click, so a dashboard that
+// opens straight to the default 'queue' tab (nobody has clicked a chip yet)
+// left the ward heatmap card visible but never initialized: a permanently
+// blank box. Run it once for the default tab so the map exists on first load.
+setDashTab(dashTab);

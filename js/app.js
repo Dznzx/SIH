@@ -135,9 +135,30 @@ document.getElementById('signOutBtn')?.addEventListener('click', async ()=>{
   location.reload();
 });
 
+// ---------- Hidden QA bypass ----------
+// ?demo=<role> (citizen|officer|faculty|industry|ngo|mentor|admin) skips real
+// Google sign-in and drops straight into that role's view with a fake local
+// profile, for testing every authenticated screen without a Google account.
+// Never linked from the UI. No real Supabase session is created, so any
+// writes attempted in this mode fail gracefully (reason: 'signed_out') via
+// the existing syncFailureMessage() toasts rather than polluting the real
+// database with fake demo data.
+const DEMO_PROFILES = {
+  citizen: { id: 'demo-citizen', name: 'Demo Citizen', email: 'demo.citizen@civicsetu.test', role: 'citizen', avatar_url: null },
+  officer: { id: 'demo-officer', name: 'Demo Officer', email: 'demo.officer@civicsetu.test', role: 'officer', avatar_url: null },
+  faculty: { id: 'demo-faculty', name: 'Demo Faculty', email: 'demo.faculty@civicsetu.test', role: 'faculty', university: 'Demo University', avatar_url: null },
+  industry: { id: 'demo-industry', name: 'Demo Partner', email: 'demo.industry@civicsetu.test', role: 'industry', avatar_url: null },
+  ngo: { id: 'demo-ngo', name: 'Demo NGO', email: 'demo.ngo@civicsetu.test', role: 'ngo', avatar_url: null },
+  mentor: { id: 'demo-mentor', name: 'Demo Mentor', email: 'demo.mentor@civicsetu.test', role: 'mentor', university: 'Demo University', avatar_url: null },
+  admin: { id: 'demo-admin', name: 'Demo Admin', email: 'demo.admin@civicsetu.test', role: 'admin', avatar_url: null },
+};
+const demoProfile = DEMO_PROFILES[new URLSearchParams(location.search).get('demo')];
+
 // Drives the whole gate: fires once on load with whatever session already
 // exists (or none), and again the instant a Google OAuth redirect completes.
-if(SB.client){
+if(demoProfile){
+  setCurrentUser(demoProfile, true);
+} else if(SB.client){
   showAuthStep('authLoadingStep');
   SB.client.auth.onAuthStateChange((event, session)=>{
     if(session && (event==='INITIAL_SESSION' || event==='SIGNED_IN' || event==='TOKEN_REFRESHED')){
