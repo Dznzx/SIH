@@ -159,8 +159,35 @@ renderQueue();
 function isSlaEscalated(r){
   return !!r.escalated || (r.timeline||[]).some(s => s.step === 'SLA Breached — Escalated');
 }
+const escalationInFlight = new Set();
 async function escalateReport(r){
-  if(isSlaEscalated(r)) return;
+  if(isSlaEscalated(r) || escalationInFlight.has(r.id)) return;
+  escalationInFlight.add(r.id);
+  try {
+    await escalateReportInner(r);
+  } finally {
+    escalationInFlight.delete(r.id);
+  }
+}
+async function escalateReportInner(r){
+  // The in-memory `r` this was called with can be a client-resolved copy
+  // (DEMO_BREACH_SOON reports get a fresh slaDeadline computed locally on
+  // every page load, before the async Supabase fetch has necessarily merged
+  // in this report's real, already-persisted timeline) — a client-only
+  // check can race and fire again even though the DB already has this
+  // escalation recorded from an earlier session. Re-check the server's
+  // actual current timeline right before writing, so a race produces at
+  // worst one skipped write, never a duplicate one.
+  if(typeof SB !== 'undefined' && SB.client){
+    try {
+      const { data: fresh } = await SB.client.from('reports').select('timeline').eq('id', r.id).single();
+      if(fresh && isSlaEscalated({ timeline: fresh.timeline })){
+        r.escalated = true;
+        r.timeline = fresh.timeline;
+        return;
+      }
+    } catch(e){ /* select failed (offline, RLS) — fall through to local-only escalation */ }
+  }
   r.escalated = true;
   ensureTimeline(r);
   r.timeline.push({
