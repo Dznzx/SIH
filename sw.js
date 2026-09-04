@@ -14,30 +14,30 @@
 // serving whatever it precached at its original install — exactly what
 // happened here. CACHE_NAME below must be bumped on every deploy that
 // changes any precached file, not just when this file's own logic changes.
-const CACHE_NAME = 'civicsetu-v11';
+const CACHE_NAME = 'civicsetu-v12';
 
 const PRECACHE_URLS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/css/app.css?v=25',
-  '/js/data.js?v=25',
-  '/js/i18n.js?v=25',
-  '/js/accessibility.js?v=25',
-  '/js/geo-cluster.js?v=25',
-  '/js/vendor/tf.min.js?v=25',
-  '/js/vendor/mobilenet.min.js?v=25',
-  '/js/ml.js?v=25',
-  '/js/app.js?v=25',
-  '/js/citizen.js?v=25',
-  '/js/authority.js?v=25',
-  '/js/portfolio.js?v=25',
-  '/js/teambuilder.js?v=25',
-  '/js/investor.js?v=25',
-  '/js/policy.js?v=25',
-  '/js/badges.js?v=25',
-  '/js/chatbot.js?v=25',
-  '/js/supabase-client.js?v=25',
+  '/css/app.css?v=26',
+  '/js/data.js?v=26',
+  '/js/i18n.js?v=26',
+  '/js/accessibility.js?v=26',
+  '/js/geo-cluster.js?v=26',
+  '/js/vendor/tf.min.js?v=26',
+  '/js/vendor/mobilenet.min.js?v=26',
+  '/js/ml.js?v=26',
+  '/js/app.js?v=26',
+  '/js/citizen.js?v=26',
+  '/js/authority.js?v=26',
+  '/js/portfolio.js?v=26',
+  '/js/teambuilder.js?v=26',
+  '/js/investor.js?v=26',
+  '/js/policy.js?v=26',
+  '/js/badges.js?v=26',
+  '/js/chatbot.js?v=26',
+  '/js/supabase-client.js?v=26',
 ];
 
 self.addEventListener('install', (event) => {
