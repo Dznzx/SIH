@@ -60,10 +60,69 @@ function runPhotoAnalysis(dataUrl){
     aiSuggestEl.classList.remove('show');
   });
 }
-// Fixed demo submission point (Ward 12, same spot as CS-2026-8912) — there's
-// no real GPS in this prototype, and reusing that coordinate is what makes
-// the duplicate-detection scenario in CIVIC.dupeCluster actually fire.
+// Demo submission point (Ward 12, same spot as CS-2026-8912) — reusing this
+// exact coordinate is what makes the duplicate-detection scenario in
+// CIVIC.dupeCluster actually fire, so it's kept as the fallback whenever
+// real GPS isn't usable: permission denied, unsupported, or (the common
+// case for anyone testing this outside Ranchi) too far from any ward this
+// demo actually covers.
 const DRAFT_LAT = 23.3441, DRAFT_LNG = 85.3096;
+
+// Real geolocation. Ward centers below are the average coordinates of this
+// ward's own seed reports already in CIVIC.reports (data.js) — not invented
+// geodata, just the centroid of points already in the dataset.
+const WARD_CENTERS = {
+  W12: { lat: 23.3429, lng: 85.3109 }, // Hatia
+  W07: { lat: 23.3252, lng: 85.3271 }, // Doranda
+  W04: { lat: 23.4055, lng: 85.3099 }, // Kanke
+  W19: { lat: 23.3701, lng: 85.3340 }, // Bariatu
+};
+const SERVICE_AREA_RADIUS_KM = 15; // generous radius around the covered wards
+function haversineKm(lat1, lng1, lat2, lng2){
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLng/2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+function nearestWard(lat, lng){
+  let best = null, bestDist = Infinity;
+  for(const [id, c] of Object.entries(WARD_CENTERS)){
+    const d = haversineKm(lat, lng, c.lat, c.lng);
+    if(d < bestDist){ bestDist = d; best = id; }
+  }
+  return { wardId: best, distanceKm: bestDist };
+}
+
+let currentLat = DRAFT_LAT, currentLng = DRAFT_LNG, currentWardId = 'W12';
+const gpsLabelEl = document.getElementById('gpsLabel');
+function setGpsLabel(text){ if(gpsLabelEl) gpsLabelEl.textContent = text; }
+
+function initGps(){
+  if(!('geolocation' in navigator)){
+    setGpsLabel(' GPS unavailable on this device — using demo location (Ward 12, Ranchi)');
+    return;
+  }
+  setGpsLabel(' Locating…');
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      const { latitude, longitude } = pos.coords;
+      const { wardId, distanceKm } = nearestWard(latitude, longitude);
+      if(distanceKm <= SERVICE_AREA_RADIUS_KM){
+        currentLat = latitude; currentLng = longitude; currentWardId = wardId;
+        setGpsLabel(` GPS · ${wardInfo(wardId).name}, Ranchi`);
+      } else {
+        setGpsLabel(' Outside service area — using demo location (Ward 12, Ranchi)');
+      }
+    },
+    ()=>{
+      setGpsLabel(' Location permission denied — using demo location (Ward 12, Ranchi)');
+    },
+    { timeout: 8000, maximumAge: 60000 }
+  );
+}
+initGps();
+
 let dupeAnchor = null;
 let confirmDuplicateMode = false;
 document.querySelectorAll('.cat-chip').forEach(chip=>{
@@ -72,7 +131,7 @@ document.querySelectorAll('.cat-chip').forEach(chip=>{
     chip.classList.add('sel');
     catSelected = chip.dataset.cat;
     confirmDuplicateMode = false;
-    dupeAnchor = findDuplicate(catSelected, DRAFT_LAT, DRAFT_LNG);
+    dupeAnchor = findDuplicate(catSelected, currentLat, currentLng);
     const dupeAlert = document.getElementById('dupeAlert');
     dupeAlert.classList.toggle('show', !!dupeAnchor);
     if(dupeAnchor){
@@ -166,7 +225,23 @@ const icons = {Pothole:'🕳️',Garbage:'🗑️',Streetlight:'💡',Handpump:'
 // Default severity per category, standing in for a citizen's implied severity
 // until step 3's real scoring; deliberately not random so a demo run is repeatable.
 const DEFAULT_SEVERITY = {Pothole:0.65, Garbage:0.5, Streetlight:0.55, Handpump:0.6};
-let reportSeq = 8913;
+// Was a fixed `let reportSeq = 8913` — every fresh page load restarted the
+// counter from the same number, so the *first* report anyone submitted in
+// any session always tried to insert id "CS-2026-8914". That collides with
+// the real, shared Supabase table the moment more than one submission ever
+// happens (this exact id already exists in production) — the insert then
+// fails on a primary-key conflict, which looks identical to "it didn't
+// save" from the citizen's side. Deriving it from the highest id actually
+// in CIVIC.reports (seed data + everything Supabase has synced in) keeps
+// it unique across sessions instead of just within one.
+function nextReportSeq(){
+  let max = 8913;
+  CIVIC.reports.forEach(r=>{
+    const m = /^CS-2026-(\d+)$/.exec(r.id);
+    if(m){ const n = parseInt(m[1], 10); if(n > max) max = n; }
+  });
+  return max + 1;
+}
 submitBtn.addEventListener('click', ()=>{
   submitBtn.disabled = true;
 
@@ -187,22 +262,23 @@ submitBtn.addEventListener('click', ()=>{
 
   // Step 8a: show the routing decision before the submitted/queued confirmation.
   const dept = CIVIC.departments[catSelected];
-  showRoutingBanner(`${catSelected} + Ward 12 → ${dept}`);
+  const wardName = wardInfo(currentWardId).name;
+  showRoutingBanner(`${catSelected} + ${wardName} → ${dept}`);
 
   setTimeout(()=>{
     submitBtn.textContent = isOnline ? t('submitted_ok') : t('queued_offline_ok');
 
     const desc = document.getElementById('descInput').value.trim();
     const now = new Date();
-    reportSeq += 1;
+    const reportSeq = nextReportSeq();
     const slaHours = CIVIC.slaHours[catSelected] || 48;
     const newReport = {
       id: `CS-2026-${reportSeq}`,
-      title: desc || `${catSelected} · Ward 12`,
+      title: desc || `${catSelected} · ${wardName}`,
       titleHi: '',
       category: catSelected,
-      ward: 'W12',
-      lat: DRAFT_LAT, lng: DRAFT_LNG,
+      ward: currentWardId,
+      lat: currentLat, lng: currentLng,
       severity: mlSeverityEstimate ?? (DEFAULT_SEVERITY[catSelected] || 0.5),
       confirms: 1,
       proximity: 'none',

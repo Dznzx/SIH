@@ -4,36 +4,40 @@
 // of just the citizen-report offline *queue* that already existed.
 //
 // Strategy: network-first, cache as a fallback. Deliberately NOT cache-first
-// — this app already got bitten once this project by a browser aggressively
-// caching a stale ?v=NN asset after a fix shipped (see git history). A
-// network-first service worker can't reintroduce that: it always tries the
-// real network before ever touching the cache, so a fresh deploy is always
-// picked up when the user is online; the cache only kicks in when there's no
-// network at all.
-const CACHE_NAME = 'civicsetu-v1';
+// — this app already got bitten once by a browser aggressively caching a
+// stale ?v=NN asset after a fix shipped. A network-first service worker
+// can't reintroduce that on its own... but it CAN if this file itself never
+// changes: a browser only checks sw.js for updates on navigation, and only
+// installs a new worker if the *bytes of this file* differ. Editing
+// app.js/etc without also touching this file (or its PRECACHE_URLS/
+// CACHE_NAME) leaves an already-installed worker running forever, still
+// serving whatever it precached at its original install — exactly what
+// happened here. CACHE_NAME below must be bumped on every deploy that
+// changes any precached file, not just when this file's own logic changes.
+const CACHE_NAME = 'civicsetu-v2';
 
 const PRECACHE_URLS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/css/app.css?v=15',
-  '/js/data.js?v=15',
-  '/js/i18n.js?v=15',
-  '/js/accessibility.js?v=15',
-  '/js/geo-cluster.js?v=15',
-  '/js/vendor/tf.min.js?v=15',
-  '/js/vendor/mobilenet.min.js?v=15',
-  '/js/ml.js?v=15',
-  '/js/app.js?v=15',
-  '/js/citizen.js?v=15',
-  '/js/authority.js?v=15',
-  '/js/portfolio.js?v=15',
-  '/js/teambuilder.js?v=15',
-  '/js/investor.js?v=15',
-  '/js/policy.js?v=15',
-  '/js/badges.js?v=15',
-  '/js/chatbot.js?v=15',
-  '/js/supabase-client.js?v=15',
+  '/css/app.css?v=16',
+  '/js/data.js?v=16',
+  '/js/i18n.js?v=16',
+  '/js/accessibility.js?v=16',
+  '/js/geo-cluster.js?v=16',
+  '/js/vendor/tf.min.js?v=16',
+  '/js/vendor/mobilenet.min.js?v=16',
+  '/js/ml.js?v=16',
+  '/js/app.js?v=16',
+  '/js/citizen.js?v=16',
+  '/js/authority.js?v=16',
+  '/js/portfolio.js?v=16',
+  '/js/teambuilder.js?v=16',
+  '/js/investor.js?v=16',
+  '/js/policy.js?v=16',
+  '/js/badges.js?v=16',
+  '/js/chatbot.js?v=16',
+  '/js/supabase-client.js?v=16',
 ];
 
 self.addEventListener('install', (event) => {
@@ -65,7 +69,11 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    fetch(event.request)
+    // `cache: 'reload'` forces this past the browser's own HTTP cache layer
+    // (separate from the Cache API below) — network-first should mean
+    // actually asking the network, not a same-tab HTTP cache hit standing
+    // in for it.
+    fetch(event.request, { cache: 'reload' })
       .then((response) => {
         const copy = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
