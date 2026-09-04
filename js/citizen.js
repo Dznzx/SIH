@@ -666,3 +666,47 @@ document.getElementById('mapFilterRow')?.addEventListener('click', (e)=>{
   mapFilter = chip.dataset.mf;
   renderCitizenMap();
 });
+
+// ---------- Home: in-place Ward Heatmap ----------
+// Lives directly in the Citizen home view (#citizenWardMap) so "Explore
+// Community Map" no longer has to leave the view to show density — this
+// is a lightweight polygon-per-ward heatmap, distinct from the full pin
+// map at #citizenMap (view-map), which stays a separate drill-down.
+let citizenWardMap = null;
+let citizenWardLayers = [];
+function wardDensityColor(reportRate){
+  if(reportRate >= 6) return '#c0392b';
+  if(reportRate >= 3) return '#c9922b';
+  return '#1f7a4d';
+}
+function wardSquareBounds(center, halfDeg){
+  const {lat, lng} = center;
+  return [[lat-halfDeg, lng-halfDeg], [lat-halfDeg, lng+halfDeg], [lat+halfDeg, lng+halfDeg], [lat+halfDeg, lng-halfDeg]];
+}
+function initCitizenWardMap(){
+  const el = document.getElementById('citizenWardMap');
+  if(!el || citizenWardMap || typeof L === 'undefined') return;
+  citizenWardMap = L.map('citizenWardMap', { scrollWheelZoom: false }).setView([23.3441, 85.3096], 11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(citizenWardMap);
+}
+function renderCitizenWardMap(){
+  initCitizenWardMap();
+  if(!citizenWardMap) return;
+  citizenWardLayers.forEach(l=>citizenWardMap.removeLayer(l));
+  citizenWardLayers = [];
+  Object.entries(WARD_CENTERS).forEach(([wardId, center])=>{
+    const info = wardInfo(wardId);
+    const color = wardDensityColor(info.reportRate);
+    const poly = L.polygon(wardSquareBounds(center, 0.006), {
+      color, weight: 2, fillColor: color, fillOpacity: 0.35
+    }).addTo(citizenWardMap);
+    poly.bindPopup(`<strong>${info.name}</strong><br>${info.reportRate} reports / 1,000 residents`);
+    citizenWardLayers.push(poly);
+  });
+  setTimeout(()=> citizenWardMap.invalidateSize(), 0);
+}
+document.getElementById('btnExploreMap')?.addEventListener('click', ()=>{
+  document.getElementById('citizenWardMapCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setTimeout(()=> citizenWardMap?.invalidateSize(), 350);
+});
+renderCitizenWardMap();

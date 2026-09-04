@@ -126,7 +126,7 @@ function renderInvestors() {
     return `
       <div class="inv-card">
         <div class="inv-card-head">
-          <div>
+          <div class="inv-card-head-info">
             <div class="inv-name-row">
               <h3 class="inv-name">${inv.name}</h3>
               ${inv.verified ? '<span class="inv-verified" title="Verified">✓ Verified</span>' : ''}

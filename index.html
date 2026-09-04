@@ -196,7 +196,7 @@
         <p data-i18n="hero_body">One channel for potholes, garbage, broken handpumps and streetlights — with photo evidence, GPS tagging, and real-time status back to you.</p>
         <div style="display:flex; gap:14px; flex-wrap:wrap;">
           <button class="btn btn-outline" style="font-weight:800; color:var(--green-dk);" onclick="goto('myreports')" data-i18n="hero_view_reports">View My Reports</button>
-          <button class="btn" style="background:rgba(255,255,255,.18); color:#fff; border:1px solid rgba(255,255,255,.5); box-shadow:0 8px 18px rgba(0,0,0,0.15), inset 2px 2px 4px rgba(255,255,255,0.4);" onclick="goto('map')" data-i18n="hero_explore_map">Explore Community Map</button>
+          <button class="btn" id="btnExploreMap" style="background:rgba(255,255,255,.18); color:#fff; border:1px solid rgba(255,255,255,.5); box-shadow:0 8px 18px rgba(0,0,0,0.15), inset 2px 2px 4px rgba(255,255,255,0.4);" data-i18n="hero_explore_map">Explore Community Map</button>
         </div>
         <div class="hero-stats">
           <div><div class="n">750+</div><div class="l" data-i18n="stat_reports_label">daily reports (comparable metro)</div></div>
@@ -272,6 +272,16 @@
       <div class="tip-card">
         <h4 data-i18n="tip_title">💡 Better Reports</h4>
         <span data-i18n="tip_body_home">Include a clear photo and precise location to help officials resolve issues faster. Reports with photos are triaged 2× quicker.</span>
+      </div>
+    </div>
+
+    <div class="card citizen-ward-map-card" id="citizenWardMapCard">
+      <h3><span><span class="ico">🗺️</span><span data-i18n="ward_heatmap_title">Ward Heatmap</span></span><span style="color:var(--muted); font-weight:400; font-size:11.5px;" data-i18n="ward_heatmap_area">Live issue density near you</span></h3>
+      <div id="citizenWardMap" class="citizen-ward-map"></div>
+      <div class="ward-map-legend">
+        <span><i style="background:#1f7a4d;"></i> Low</span>
+        <span><i style="background:#c9922b;"></i> Medium</span>
+        <span><i style="background:#c0392b;"></i> High</span>
       </div>
     </div>
   </div>
@@ -878,12 +888,6 @@
     </div>
     <button class="btn btn-primary" onclick="document.getElementById('aboutModal').style.display='none'" style="width:100%;" data-i18n="btn_close">Close</button>
   </div>
-</div>
-
-<!-- Demo control, not a real network state — see PROMPT.md "keep it demo-honest". -->
-<div class="demo-tools" id="networkToggle" title="Demo control: simulates connectivity for the offline-first flow">
-  <span class="demo-tools-label" data-i18n="demo_network_label">DEMO · NETWORK</span>
-  <button class="demo-tools-btn online" id="networkBtn" data-i18n="btn_online">ONLINE</button>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
