@@ -43,7 +43,8 @@ const SB = (function () {
       proofPhoto: row.proofPhoto || null,
       resolvedAt: row.resolvedAt || null,
       timeline: row.timeline || [],
-      comments: row.comments || []
+      comments: row.comments || [],
+      reporterEmail: row.reporterEmail || null
     };
   }
 
@@ -69,7 +70,8 @@ const SB = (function () {
       proofPhoto: r.proofPhoto,
       resolvedAt: r.resolvedAt || null,
       timeline: r.timeline || [],
-      comments: r.comments || []
+      comments: r.comments || [],
+      reporterEmail: r.reporterEmail || null
     };
   }
 

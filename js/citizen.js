@@ -108,11 +108,16 @@ function initGps(){
     (pos)=>{
       const { latitude, longitude } = pos.coords;
       const { wardId, distanceKm } = nearestWard(latitude, longitude);
+      // Always use the real GPS fix — this app is a Ranchi-specific
+      // prototype, but demo testers/judges can be anywhere in the world, and
+      // silently swapping their real location for a fixed Ranchi fallback
+      // just because they're outside a 15km radius reads as "GPS is broken".
+      // Show real distance-from-service-area context instead of hiding it.
+      currentLat = latitude; currentLng = longitude; currentWardId = wardId;
       if(distanceKm <= SERVICE_AREA_RADIUS_KM){
-        currentLat = latitude; currentLng = longitude; currentWardId = wardId;
         setGpsLabel(` GPS · ${wardInfo(wardId).name}, Ranchi`);
       } else {
-        setGpsLabel(' Outside service area — using demo location (Ward 12, Ranchi)');
+        setGpsLabel(` GPS · ${Math.round(distanceKm)}km from Ranchi — mapped to nearest ward (${wardInfo(wardId).name}) for this demo`);
       }
     },
     ()=>{
@@ -289,7 +294,8 @@ submitBtn.addEventListener('click', ()=>{
       photo: capturedPhotoData || null,
       proofPhoto: null,
       timeline: [],
-      comments: []
+      comments: [],
+      reporterEmail: currentUser?.email || null
     };
     ensureTimeline(newReport);
     CIVIC.reports.unshift(newReport);
@@ -383,11 +389,19 @@ function buildThumb(url, altText){
   return box;
 }
 let reportsFilter = 'all';
+// "My Reports" must actually mean the signed-in citizen's own reports — old
+// reports predating this field (or ones synced before a reporterEmail was
+// ever recorded) have no owner on file, so they're shown too rather than
+// disappearing silently; anything with a *different* owner is excluded.
+function myReports(){
+  const email = (typeof currentUser !== 'undefined' && currentUser?.email) || null;
+  return CIVIC.reports.filter(r => !r.reporterEmail || r.reporterEmail === email);
+}
 function renderReports(filter){
   reportsFilter = filter || reportsFilter;
   const list = document.getElementById('reportsList');
   list.innerHTML = '';
-  CIVIC.reports.filter(r => reportsFilter==='all' || citizenStatusBucket(r.status)===reportsFilter).forEach(r=>{
+  myReports().filter(r => reportsFilter==='all' || citizenStatusBucket(r.status)===reportsFilter).forEach(r=>{
     const bucket = citizenStatusBucket(r.status);
     const sm = statusMeta[bucket];
     const div = document.createElement('div');
@@ -415,8 +429,9 @@ function renderReports(filter){
   updateReportCounts();
 }
 function updateReportCounts(){
-  const counts = {all:CIVIC.reports.length, received:0, working:0, fixed:0};
-  CIVIC.reports.forEach(r=> counts[citizenStatusBucket(r.status)]++);
+  const mine = myReports();
+  const counts = {all:mine.length, received:0, working:0, fixed:0};
+  mine.forEach(r=> counts[citizenStatusBucket(r.status)]++);
   document.querySelectorAll('#filterRow .fchip').forEach(chip=>{
     const f = chip.dataset.f;
     const labels = {all:t('filter_all'), received:t('filter_received'), working:t('filter_working'), fixed:t('filter_fixed')};
