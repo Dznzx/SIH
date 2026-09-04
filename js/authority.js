@@ -3,7 +3,7 @@ function renderKPIs(){
   const all = CIVIC.reports;
   const open = all.filter(r=>r.status!=='resolved' && r.status!=='queued').length;
   const resolved = all.filter(r=>r.status==='resolved').length;
-  const breached = all.filter(r=>r.status!=='resolved' && r.status!=='queued' && r.slaDeadline!=='DEMO_BREACH_SOON' && new Date(r.slaDeadline) < new Date()).length;
+  const breached = all.filter(r=>r.status!=='resolved' && r.status!=='queued' && r.slaDeadline && r.slaDeadline!=='DEMO_BREACH_SOON' && new Date(r.slaDeadline) < new Date()).length;
   const topSeverity = Math.max(...all.map(r=>r.severity)).toFixed(2);
   const nums = document.querySelectorAll('.kpi .num');
   if(nums.length===4){
@@ -40,7 +40,7 @@ function slaWindowHours(category){
 // resolved to a real deadline at runtime by step 6 — until then, treat it as
 // "just submitted" so it doesn't distort the score before that wiring exists.
 function slaRemainingHours(r){
-  if(r.slaDeadline==='DEMO_BREACH_SOON') return slaWindowHours(r.category);
+  if(!r.slaDeadline || r.slaDeadline==='DEMO_BREACH_SOON') return slaWindowHours(r.category);
   return (new Date(r.slaDeadline) - new Date()) / 3600000;
 }
 function computePriority(r){
@@ -82,6 +82,7 @@ function severityColor(score){
   return score>=0.75 ? 'var(--red)' : score>=0.45 ? 'var(--amber)' : 'var(--muted)';
 }
 function slaBreached(r){
+  if(!r.slaDeadline || r.slaDeadline==='DEMO_BREACH_SOON') return false;
   return new Date(r.slaDeadline) - Date.now() <= 0;
 }
 function formatDuration(ms){
@@ -90,6 +91,7 @@ function formatDuration(ms){
   return h>0 ? `${h}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s` : `${m}m ${String(s).padStart(2,'0')}s`;
 }
 function slaCountdownText(r){
+  if(!r.slaDeadline || r.slaDeadline==='DEMO_BREACH_SOON') return 'Pending';
   const ms = new Date(r.slaDeadline) - Date.now();
   return ms<=0 ? `BREACHED · ${formatDuration(-ms)} over` : `${formatDuration(ms)} left`;
 }
@@ -146,7 +148,19 @@ function renderQueue(highlightId){
 renderQueue();
 
 // ---------- Authority: live SLA countdown + auto-escalation ----------
+// "Already escalated" must be derived from something that survives a
+// Supabase realtime refresh. `report.escalated` is an in-memory-only flag —
+// bootstrapReportsFromSupabase() rebuilds CIVIC.reports from DB rows on
+// every insert/update from any client (including this one's own escalation
+// write), which has no `escalated` column and silently drops the flag. The
+// timeline IS persisted (it's part of every SB.updateReport patch here), so
+// it's the reliable signal. Without this, the 1s interval below re-detects
+// the same breach after every realtime refresh and escalates forever.
+function isSlaEscalated(r){
+  return !!r.escalated || (r.timeline||[]).some(s => s.step === 'SLA Breached — Escalated');
+}
 async function escalateReport(r){
+  if(isSlaEscalated(r)) return;
   r.escalated = true;
   ensureTimeline(r);
   r.timeline.push({
@@ -174,7 +188,7 @@ setInterval(()=>{
     el.textContent = slaCountdownText(report);
     el.classList.toggle('critical', breached);
     el.closest('.queue-item')?.classList.toggle('critical', breached);
-    if(breached && !report.escalated){
+    if(breached && !isSlaEscalated(report)){
       escalateReport(report);
       showToast(`🚨 SLA breached: ${report.id} — escalated to Ward Officer`, 4000);
       newBreach = true;

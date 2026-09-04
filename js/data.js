@@ -494,7 +494,19 @@ async function bootstrapReportsFromSupabase(){
     const rows = await SB.listReports();
     if(!rows) return; // fetch failed (offline, RLS, etc.) — keep local fallback data
     const byId = new Map(CIVIC.reports.map(r=>[r.id, r]));
-    rows.forEach(row => byId.set(row.id, row));
+    rows.forEach(row => {
+      const existing = byId.get(row.id);
+      const merged = Object.assign({}, existing, row);
+      // Supabase has no column for the client-resolved DEMO_BREACH_SOON
+      // deadline or the in-memory `escalated` flag. A null/undefined
+      // slaDeadline on the row means "not tracked server-side", not "no
+      // deadline" — falling back to it would permanently read as breached
+      // (new Date(null) is 1970) and re-trigger auto-escalation forever on
+      // every realtime refresh. Keep whatever the client already resolved.
+      if(row.slaDeadline == null && existing && existing.slaDeadline) merged.slaDeadline = existing.slaDeadline;
+      if(existing && existing.escalated) merged.escalated = true;
+      byId.set(row.id, merged);
+    });
     CIVIC.reports.length = 0;
     CIVIC.reports.push(...Array.from(byId.values()));
     window.dispatchEvent(new CustomEvent('civic:reportsUpdated'));
