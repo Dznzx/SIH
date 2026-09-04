@@ -8,21 +8,123 @@ let capturedPhotoData = null;
 let mlSeverityEstimate = null;
 let aiSuggestedCategory = null;
 const aiSuggestEl = document.getElementById('aiSuggest');
+
+// ---------- Geotag stamp (burned into the photo itself, like a GPS camera
+// app) — location, ward and capture time, drawn onto a canvas so it's part
+// of the actual image data that gets submitted, not just UI chrome. Uses
+// whatever GPS fix citizen.js already has (currentLat/currentLng/
+// currentWardId from initGps()) at the moment of capture. ----------
+function stampPhotoWithGeotag(dataUrl){
+  return new Promise((resolve)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      try{
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+
+        const wardName = wardInfo(currentWardId).name;
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+        const timeStr = now.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        const coordStr = `Lat ${currentLat.toFixed(5)}° · Lng ${currentLng.toFixed(5)}°`;
+        const lines = [`📍 ${wardName}, Ranchi`, coordStr, `${dateStr} · ${timeStr}`];
+
+        const pad = Math.max(10, Math.round(canvas.width * 0.02));
+        const fontSize = Math.max(12, Math.round(canvas.width * 0.032));
+        const lineH = fontSize * 1.35;
+        const barH = pad * 2 + lineH * lines.length;
+
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(0, canvas.height - barH, canvas.width, barH);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `${fontSize}px -apple-system, "Segoe UI", sans-serif`;
+        ctx.textBaseline = 'top';
+        lines.forEach((line, i)=>{
+          ctx.fillText(line, pad, canvas.height - barH + pad + i * lineH);
+        });
+
+        // Small "CivicSetu" watermark, top-right — signals the stamp is
+        // authentic to this app rather than editable after the fact.
+        ctx.font = `${Math.round(fontSize*0.8)}px -apple-system, "Segoe UI", sans-serif`;
+        ctx.textAlign = 'right';
+        const wmText = 'CivicSetu · Geotagged';
+        const wmMetrics = ctx.measureText(wmText);
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(canvas.width - wmMetrics.width - pad*2, pad*0.5, wmMetrics.width + pad*1.5, fontSize*1.1);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(wmText, canvas.width - pad, pad*0.5 + fontSize*0.15);
+
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      }catch(e){
+        console.error('Geotag stamp failed, using original photo:', e.message || e);
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = ()=> resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+// ---------- AI photo relevance check (api/analyze-photo.js, Groq vision) ----------
+// Flags a photo that doesn't actually show a civic issue (a selfie, a
+// random object, a screenshot) before the citizen submits it. Never blocks
+// submission — it's a warning, not a gate, since the model can be wrong
+// and offline/no-key states must still let people report issues.
+const photoWarningEl = (function(){
+  const el = document.createElement('div');
+  el.className = 'photo-relevance-warning';
+  el.style.display = 'none';
+  captureBox.insertAdjacentElement('afterend', el);
+  return el;
+})();
+function showPhotoWarning(msg){
+  photoWarningEl.innerHTML = `⚠️ <span>${msg}</span>`;
+  photoWarningEl.style.display = 'flex';
+}
+function hidePhotoWarning(){
+  photoWarningEl.style.display = 'none';
+}
+function runPhotoVisionCheck(dataUrl){
+  hidePhotoWarning();
+  fetch('/api/analyze-photo', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ imageDataUrl: dataUrl, category: catSelected })
+  })
+    .then(res => res.ok ? res.json() : null)
+    .then(data => {
+      if(dataUrl !== capturedPhotoData) return; // a newer photo replaced this one meanwhile
+      if(!data || !data.ok) return; // offline/no-key/error — stay silent, never block
+      if(data.relevant === false){
+        showPhotoWarning(data.message || `This photo doesn't look like a civic issue (looks like: ${data.subject || 'something else'}). You can still submit, but a clearer photo helps officials act faster.`);
+      }
+    })
+    .catch(()=>{ /* network failure — stay silent, never block submission */ });
+}
+
 captureBox.addEventListener('click', ()=> photoInput.click());
 photoInput.addEventListener('change', ()=>{
   const file = photoInput.files[0];
   if(!file) return;
   const reader = new FileReader();
   reader.onload = (e)=>{
-    capturedPhotoData = e.target.result;
-    captured = true;
-    captureBox.classList.add('captured');
-    captureBox.style.backgroundImage = `url(${capturedPhotoData})`;
-    captureBox.style.backgroundSize = 'cover';
-    captureBox.style.backgroundPosition = 'center';
-    captureBox.querySelector('.cam-label').textContent = t('photo_captured');
-    checkReady();
-    runPhotoAnalysis(capturedPhotoData);
+    hidePhotoWarning();
+    stampPhotoWithGeotag(e.target.result).then(stamped=>{
+      capturedPhotoData = stamped;
+      captured = true;
+      captureBox.classList.add('captured');
+      captureBox.style.backgroundImage = `url(${capturedPhotoData})`;
+      captureBox.style.backgroundSize = 'cover';
+      captureBox.style.backgroundPosition = 'center';
+      captureBox.querySelector('.cam-label').textContent = t('photo_captured');
+      checkReady();
+      runPhotoAnalysis(capturedPhotoData);
+      runPhotoVisionCheck(capturedPhotoData);
+    });
   };
   reader.readAsDataURL(file);
 });
@@ -220,6 +322,7 @@ function resetCaptureForm(){
   submitBtn.textContent = t('submit_report');
   submitBtn.disabled = true;
   setReportVisibility('public');
+  hidePhotoWarning();
 }
 
 // ---------- Report visibility (public/private) ----------
