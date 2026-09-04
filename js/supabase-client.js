@@ -6,10 +6,10 @@
 // entire premise of the app is "citizen reports it, an officer somewhere
 // else sees it" — so reports are the one thing that must live in a real,
 // shared database, not a browser's own storage. That's what this file wires
-// up: a Supabase project the reports table already existed in, with RLS
-// policies already allowing anon select/insert/update (this is a public
-// prototype with a fake passcode gate, not a real multi-tenant app — see the
-// "not secure" banner on sign-in).
+// up: a Supabase project the reports table already existed in. RLS allows
+// anyone to read, but insert/update require a real authenticated session
+// (see the `profiles` table's policies) — Google sign-in via Supabase Auth
+// is what makes that role real.
 //
 // The publishable/anon key below is meant to be embedded in client code —
 // it's authorization-scoped by Postgres Row Level Security policies on the
@@ -80,15 +80,36 @@ const SB = (function () {
     return data.map(rowToReport);
   }
 
+  // Writes (insert/update) require role `authenticated` under RLS. A PATCH
+  // sent under the anon key doesn't error — PostgREST just matches 0 rows
+  // and returns 204 "success" — so a caller that only checks `error` can
+  // believe a write worked when RLS silently discarded it. This is why a
+  // session gets verified/refreshed *before* every write, not just relied
+  // on implicitly.
+  async function ensureSession() {
+    if (!client) return null;
+    const { data: { session } } = await client.auth.getSession();
+    if (session) return session;
+    // No session, or the SDK's local copy is stale — try one refresh before
+    // giving up, in case only the access token (not the underlying login)
+    // has lapsed.
+    const { data: { session: refreshed } } = await client.auth.refreshSession().catch(() => ({ data: { session: null } }));
+    return refreshed || null;
+  }
+
   async function insertReport(report) {
-    if (!client) return false;
+    if (!client) return { ok: false, reason: 'offline' };
+    const session = await ensureSession();
+    if (!session) return { ok: false, reason: 'signed_out' };
     const { error } = await client.from('reports').insert(reportToRow(report));
-    if (error) { console.error('SB.insertReport failed:', error.message); return false; }
-    return true;
+    if (error) { console.error('SB.insertReport failed:', error.message); return { ok: false, reason: 'error', message: error.message }; }
+    return { ok: true };
   }
 
   async function updateReport(id, patch) {
-    if (!client) return false;
+    if (!client) return { ok: false, reason: 'offline' };
+    const session = await ensureSession();
+    if (!session) return { ok: false, reason: 'signed_out' };
     const row = {};
     if ('status' in patch) row.status = patch.status;
     if ('assignee' in patch) row.assignee = patch.assignee;
@@ -96,9 +117,10 @@ const SB = (function () {
     if ('resolvedAt' in patch) row.resolvedAt = patch.resolvedAt;
     if ('proofPhoto' in patch) row.proofPhoto = patch.proofPhoto;
     if ('confirms' in patch) row.confirms = patch.confirms;
-    const { error } = await client.from('reports').update(row).eq('id', id);
-    if (error) { console.error('SB.updateReport failed:', error.message); return false; }
-    return true;
+    const { error, count } = await client.from('reports').update(row, { count: 'exact' }).eq('id', id);
+    if (error) { console.error('SB.updateReport failed:', error.message); return { ok: false, reason: 'error', message: error.message }; }
+    if (count === 0) { console.error('SB.updateReport matched 0 rows (RLS likely blocked it) for', id); return { ok: false, reason: 'blocked' }; }
+    return { ok: true };
   }
 
   // Fires `onChange` whenever ANY client inserts or updates a report row —

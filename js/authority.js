@@ -159,8 +159,9 @@ async function escalateReport(r){
   pushNotification('🚨', `SLA breached: ${r.id} — escalated to ${CIVIC.departments[r.category] || 'Ward Officer'}`);
 
   if(typeof SB !== 'undefined' && SB.client){
-    SB.updateReport(r.id, { timeline: r.timeline }).then(ok=>{
-      if(!ok) console.error('Failed to sync SLA escalation to Supabase:', r.id);
+    SB.updateReport(r.id, { timeline: r.timeline }).then(result=>{
+      const msg = syncFailureMessage(result);
+      if(msg) showToast(msg, 5000);
     });
   }
 }
@@ -229,8 +230,9 @@ async function assignReport(r){
   pushNotification('🛠️', `${r.id} assigned to ${r.assignee}`);
 
   if(typeof SB !== 'undefined' && SB.client){
-    SB.updateReport(r.id, { status: r.status, assignee: r.assignee, timeline: r.timeline }).then(ok=>{
-      if(!ok) console.error('Failed to sync assignment to Supabase:', r.id);
+    SB.updateReport(r.id, { status: r.status, assignee: r.assignee, timeline: r.timeline }).then(result=>{
+      const msg = syncFailureMessage(result);
+      if(msg) showToast(msg, 5000);
     });
   }
 }
@@ -247,8 +249,9 @@ async function resolveReport(r, proofPhoto){
   pushNotification('✅', `Resolved: ${r.title}`);
 
   if(typeof SB !== 'undefined' && SB.client){
-    SB.updateReport(r.id, { status: r.status, resolvedAt: r.resolvedAt, timeline: r.timeline, proofPhoto: r.proofPhoto }).then(ok=>{
-      if(!ok) console.error('Failed to sync resolution to Supabase:', r.id);
+    SB.updateReport(r.id, { status: r.status, resolvedAt: r.resolvedAt, timeline: r.timeline, proofPhoto: r.proofPhoto }).then(result=>{
+      const msg = syncFailureMessage(result);
+      if(msg) showToast(msg, 5000);
     });
   }
 }

@@ -176,8 +176,9 @@ submitBtn.addEventListener('click', ()=>{
     showToast(`Confirmed existing issue ${dupeAnchor.id} — now ${dupeAnchor.confirms} confirmations`, 2200);
     pushNotification('🔁', `Confirmed existing issue ${dupeAnchor.id} — now ${dupeAnchor.confirms} confirmations`);
     if(typeof SB !== 'undefined' && SB.client){
-      SB.updateReport(dupeAnchor.id, { confirms: dupeAnchor.confirms }).then(ok=>{
-        if(!ok) console.error('Failed to sync confirmation count to Supabase:', dupeAnchor.id);
+      SB.updateReport(dupeAnchor.id, { confirms: dupeAnchor.confirms }).then(result=>{
+        const msg = syncFailureMessage(result);
+        if(msg) showToast(msg, 5000);
       });
     }
     setTimeout(resetCaptureForm, 900);
@@ -237,8 +238,12 @@ submitBtn.addEventListener('click', ()=>{
       // every other signed-in user (e.g. an officer's Authority dashboard on
       // a different device), not just this browser's own localStorage.
       if(typeof SB !== 'undefined' && SB.client){
-        SB.insertReport(newReport).then(ok=>{
-          if(!ok) console.error('Report saved locally but failed to sync to Supabase:', newReport.id);
+        SB.insertReport(newReport).then(result=>{
+          const msg = syncFailureMessage(result);
+          if(msg){
+            console.error('Report saved locally but failed to sync to Supabase:', newReport.id, result);
+            showToast(msg, 6000);
+          }
         });
       }
     } else {

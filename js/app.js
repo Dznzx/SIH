@@ -400,6 +400,22 @@ function showToast(message, duration=2200){
   showToast._t = setTimeout(()=> el.classList.remove('show'), duration);
 }
 
+// SB.insertReport/updateReport return {ok, reason} instead of a bare
+// boolean specifically so a failed write can say WHY — "you're signed out"
+// needs a different fix from "the network dropped", and both need to be
+// visible to the user rather than a console.error nobody sees. Without
+// this, a write silently discarded by Row Level Security (a session gone
+// stale — see js/supabase-client.js's ensureSession) looked identical to a
+// real save: the local UI already showed the change, so nothing seemed
+// wrong until the next reload quietly reverted it.
+function syncFailureMessage(result){
+  if(!result || result.ok) return null;
+  if(result.reason === 'signed_out') return "⚠️ Your session expired — this didn't save. Please sign out and sign in again.";
+  if(result.reason === 'blocked') return "⚠️ This didn't save (permission denied) — try signing out and back in.";
+  if(result.reason === 'offline') return "⚠️ Not connected — this only saved on this device.";
+  return "⚠️ This didn't save to the server — try again.";
+}
+
 // ---------- Offline-first (step 4) ----------
 // `isOnline` is a demo control, not a real network check — see the pinned
 // DEMO · NETWORK toggle. Offline submissions get status 'queued' and are
@@ -442,8 +458,12 @@ function flushOfflineQueue(){
       // A queued report was never inserted into Supabase — only now that
       // it's "back online" does it actually become visible to other users.
       if(typeof SB !== 'undefined' && SB.client){
-        SB.insertReport(r).then(ok=>{
-          if(!ok) console.error('Queued report synced locally but failed to reach Supabase:', r.id);
+        SB.insertReport(r).then(result=>{
+          const msg = syncFailureMessage(result);
+          if(msg){
+            console.error('Queued report synced locally but failed to reach Supabase:', r.id, result);
+            showToast(msg, 6000);
+          }
         });
       }
       if(i === queued.length-1){
