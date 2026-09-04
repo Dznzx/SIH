@@ -457,7 +457,11 @@ function flushOfflineQueue(){
       renderQueue();
       // A queued report was never inserted into Supabase — only now that
       // it's "back online" does it actually become visible to other users.
-      if(typeof SB !== 'undefined' && SB.client){
+      // Skip the attempt (and stay silent) until someone is actually signed
+      // in: without a session this always fails with reason:'signed_out',
+      // which used to surface a "session expired" toast to a visitor who
+      // never even signed in, on every single page load.
+      if(typeof SB !== 'undefined' && SB.client && currentUser){
         SB.insertReport(r).then(result=>{
           const msg = syncFailureMessage(result);
           if(msg){
