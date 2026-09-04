@@ -171,5 +171,80 @@ const SB = (function () {
       .subscribe();
   }
 
-  return { client, listReports, insertReport, updateReport, confirmReport, subscribeReports };
+  // ---------- University challenges (officer escalates -> faculty
+  // approves -> visible to students) ----------
+  function rowToChallenge(row) {
+    return {
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      domain: row.domain,
+      deadline: row.deadline,
+      teamSizeLimit: row.team_size_limit,
+      roleSlots: row.role_slots || {},
+      sourceReportId: row.source_report_id,
+      sourceWard: row.source_ward,
+      status: row.status,
+      createdBy: row.created_by,
+      reviewedBy: row.reviewed_by,
+      reviewedAt: row.reviewed_at,
+      reviewNote: row.review_note,
+      createdAt: row.created_at
+    };
+  }
+
+  async function listChallenges() {
+    if (!client) return null;
+    const { data, error } = await client.from('challenges').select('*').order('created_at', { ascending: false });
+    if (error) { console.error('SB.listChallenges failed:', error.message); return null; }
+    return data.map(rowToChallenge);
+  }
+
+  async function insertChallenge(challenge) {
+    if (!client) return { ok: false, reason: 'offline' };
+    const session = await ensureSession();
+    if (!session) return { ok: false, reason: 'signed_out' };
+    const row = {
+      id: challenge.id,
+      title: challenge.title,
+      description: challenge.description,
+      domain: challenge.domain,
+      deadline: challenge.deadline,
+      team_size_limit: challenge.teamSizeLimit,
+      role_slots: challenge.roleSlots || {},
+      source_report_id: challenge.sourceReportId,
+      source_ward: challenge.sourceWard,
+      created_by: session.user.id
+    };
+    const { error } = await client.from('challenges').insert(row);
+    if (error) { console.error('SB.insertChallenge failed:', error.message); return { ok: false, reason: 'error', message: error.message }; }
+    return { ok: true };
+  }
+
+  // Faculty approve/reject. Same 0-rows-affected-but-no-error RLS gotcha as
+  // updateReport, so this checks an exact row count too.
+  async function reviewChallenge(id, status, note) {
+    if (!client) return { ok: false, reason: 'offline' };
+    const session = await ensureSession();
+    if (!session) return { ok: false, reason: 'signed_out' };
+    const row = { status, reviewed_by: session.user.id, reviewed_at: new Date().toISOString() };
+    if (note) row.review_note = note;
+    const { error, count } = await client.from('challenges').update(row, { count: 'exact' }).eq('id', id);
+    if (error) { console.error('SB.reviewChallenge failed:', error.message); return { ok: false, reason: 'error', message: error.message }; }
+    if (count === 0) { console.error('SB.reviewChallenge matched 0 rows (RLS likely blocked it) for', id); return { ok: false, reason: 'blocked' }; }
+    return { ok: true };
+  }
+
+  function subscribeChallenges(onChange) {
+    if (!client) return null;
+    return client
+      .channel('challenges-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'challenges' }, onChange)
+      .subscribe();
+  }
+
+  return {
+    client, listReports, insertReport, updateReport, confirmReport, subscribeReports,
+    listChallenges, insertChallenge, reviewChallenge, subscribeChallenges
+  };
 })();

@@ -410,28 +410,62 @@ const CIVIC = {
 /* ---------- Citizen report -> university challenge bridge ----------
    This is the mechanic SIH26043 actually asks for: a societal problem a
    citizen reports must be routable to a university team for solving, not
-   just to a municipal officer. CIVIC.challenges above are the seed/demo
-   challenges; escalated ones (created from a real report in the Authority
-   dashboard) are layered on top from localStorage so they survive reloads
-   without needing a backend. getAllChallenges() is what every screen
-   (Team Builder, Policy Insights participation stats) should read from —
-   never read CIVIC.challenges directly once a report has been escalated. */
-const EXTRA_CHALLENGES_KEY = 'civic_extra_challenges';
-function getExtraChallenges(){
-  try{ return JSON.parse(localStorage.getItem(EXTRA_CHALLENGES_KEY) || '[]'); }
-  catch(e){ return []; }
+   just to a municipal officer. The full pipeline: an officer escalates a
+   report (status 'pending_review'), a faculty member approves or rejects
+   it, and only 'approved' ones become visible to students in Team Builder
+   — a real, shared, cross-device workflow via Supabase, not something
+   that only exists in the officer's own browser.
+
+   CIVIC.challenges above are the 3 seed/demo hackathon challenges — not
+   part of this pipeline, so they're always open to students regardless of
+   review status. Report-escalated ones live in `reportChallenges`, kept
+   in sync with Supabase the same way CIVIC.reports is (bootstrap +
+   realtime subscription).
+
+   getAllChallenges() is the student-facing read (seed + approved only).
+   getPendingChallenges() is the faculty-facing read (awaiting review).
+   Neither screen should read reportChallenges directly. */
+let reportChallenges = [];
+
+function isEscalatedToChallenge(reportId){
+  return reportChallenges.some(c => c.sourceReportId === reportId);
 }
-function saveExtraChallenges(list){
-  localStorage.setItem(EXTRA_CHALLENGES_KEY, JSON.stringify(list));
+// null if never escalated, else the challenge's current review status
+// ('pending_review' | 'approved' | 'rejected') — the Authority queue button
+// uses this to distinguish "waiting on faculty" from "already visible to
+// students" instead of collapsing both into one "done" state.
+function challengeStatusForReport(reportId){
+  const c = reportChallenges.find(c => c.sourceReportId === reportId);
+  return c ? c.status : null;
 }
 function getAllChallenges(){
-  return CIVIC.challenges.concat(getExtraChallenges());
+  return CIVIC.challenges.concat(reportChallenges.filter(c => c.status === 'approved'));
 }
-// Turns a citizen's report into a university-facing challenge. Returns the
-// new challenge, or null if this report was already escalated.
-function createChallengeFromReport(report){
-  const extra = getExtraChallenges();
-  if(extra.some(c => c.sourceReportId === report.id)) return null;
+function getPendingChallenges(){
+  return reportChallenges.filter(c => c.status === 'pending_review');
+}
+async function bootstrapChallengesFromSupabase(){
+  if(typeof SB === 'undefined' || !SB.client) return;
+  try{
+    const rows = await SB.listChallenges();
+    if(!rows) return;
+    reportChallenges = rows;
+    window.dispatchEvent(new CustomEvent('civic:challengesUpdated'));
+  } catch(e){
+    console.error('Challenges bootstrap failed:', e);
+  }
+}
+bootstrapChallengesFromSupabase();
+if(typeof SB !== 'undefined' && SB.client){
+  SB.subscribeChallenges(() => bootstrapChallengesFromSupabase());
+}
+
+// Turns a citizen's report into a university-facing challenge, pending
+// faculty review. Returns the new challenge (status 'pending_review'), or
+// null if this report was already escalated or the write failed.
+async function createChallengeFromReport(report){
+  if(isEscalatedToChallenge(report.id)) return null;
+  if(typeof SB === 'undefined' || !SB.client) return null;
   const domain = CIVIC.domains[report.category] || 'Urban Infrastructure';
   const deadline = new Date(Date.now() + 45*24*3600*1000).toISOString();
   const challenge = {
@@ -443,11 +477,11 @@ function createChallengeFromReport(report){
     teamSizeLimit: 4,
     roleSlots: { 'Research Lead': 1, 'Engineer': 2, 'Domain Expert': 1 },
     sourceReportId: report.id,
-    sourceWard: report.ward,
-    createdAt: new Date().toISOString()
+    sourceWard: report.ward
   };
-  extra.push(challenge);
-  saveExtraChallenges(extra);
+  const result = await SB.insertChallenge(challenge);
+  if(!result.ok) return null;
+  await bootstrapChallengesFromSupabase();
   return challenge;
 }
 

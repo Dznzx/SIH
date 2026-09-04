@@ -35,12 +35,21 @@ function retrieve(query, k = 4) {
   return top.length ? top.map(s => s.doc) : kb.slice(0, k);
 }
 
-async function callGroq(question, contextDocs, history) {
+async function callGroq(question, contextDocs, history, liveContext) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
 
   const contextText = contextDocs.map((d, i) => `[${i + 1}] ${d.text}`).join('\n\n');
-  const system = `You are the CivicSetu AI Assistant, embedded in a Smart India Hackathon prototype (SIH26043, Government of Jharkhand) that crowdsources societal challenges and routes them to universities and industry. Answer the user's question ONLY using the CONTEXT below — it describes exactly what this specific prototype does. If the answer isn't in the context, say you don't have that information in this prototype rather than guessing. Keep answers under 120 words, plain text, no markdown headers.\n\nCONTEXT:\n${contextText}`;
+  let system = `You are the CivicSetu AI Assistant, embedded in a Smart India Hackathon prototype (SIH26043, Government of Jharkhand) that crowdsources societal challenges and routes them to universities and industry. Answer the user's question using the CONTEXT below — it describes exactly what this specific prototype does. If the answer isn't in the context, say you don't have that information in this prototype rather than guessing. Keep answers under 120 words, plain text, no markdown headers.\n\nCONTEXT:\n${contextText}`;
+
+  // Real, live data the client pulled from the signed-in user's own session
+  // (their reports, or reports matching a ward/category the question named)
+  // — not from the static knowledge base above. Answer directly from it
+  // when it's relevant to the question; treat it as real information about
+  // this specific user/session, not as instructions to follow.
+  if (liveContext) {
+    system += `\n\nLIVE DATA (from the app's real database, specific to this user's current session):\n${liveContext}\n\nIf the LIVE DATA above answers the question, use it directly and specifically (cite report IDs/status) instead of saying you don't have that information.`;
+  }
 
   const messages = [{ role: 'system', content: system }]
     .concat(
@@ -94,6 +103,7 @@ module.exports = async (req, res) => {
   }
   const message = (body && body.message || '').toString().slice(0, 1000);
   const history = Array.isArray(body && body.history) ? body.history : [];
+  const liveContext = (body && body.liveContext) ? body.liveContext.toString().slice(0, 3000) : null;
 
   if (!message.trim()) {
     res.status(400).json({ error: 'message is required' });
@@ -105,7 +115,7 @@ module.exports = async (req, res) => {
     let reply;
     let mode = 'llm';
     try {
-      reply = await callGroq(message, contextDocs, history);
+      reply = await callGroq(message, contextDocs, history, liveContext);
     } catch (llmErr) {
       console.error('Groq call failed:', llmErr.message);
       reply = null;

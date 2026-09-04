@@ -284,6 +284,7 @@ window.addEventListener('civic:reportsUpdated', ()=>{
   } catch(e){}
   try { if(typeof renderResolvedGallery==='function') renderResolvedGallery(); } catch(e){}
   try { if(typeof renderInstitutionalParticipation==='function') renderInstitutionalParticipation(); } catch(e){}
+  try { if(typeof renderIndustryPortal==='function') renderIndustryPortal(); } catch(e){}
   // Only re-render the Community Map if it's already been initialized (the
   // user has visited it at least once) — calling renderCitizenMap() before
   // that would create a Leaflet instance inside a still-hidden view, the
@@ -292,6 +293,17 @@ window.addEventListener('civic:reportsUpdated', ()=>{
     if(typeof citizenMap!=='undefined' && citizenMap && typeof renderCitizenMap==='function') renderCitizenMap();
   } catch(e){}
   refreshAllHotspots();
+});
+
+// Fires when the challenges table changes (an officer escalates a report,
+// or a faculty member approves/rejects one) — same try/catch-per-call
+// reasoning as civic:reportsUpdated above.
+window.addEventListener('civic:challengesUpdated', ()=>{
+  try { if(typeof renderQueue==='function') renderQueue(); } catch(e){}
+  try { if(typeof renderFacultyQueue==='function') renderFacultyQueue(); } catch(e){}
+  try { if(typeof renderChallenges==='function') renderChallenges(); } catch(e){}
+  try { if(typeof renderInstitutionalParticipation==='function') renderInstitutionalParticipation(); } catch(e){}
+  try { if(typeof renderIndustryPortal==='function') renderIndustryPortal(); } catch(e){}
 });
 
 function showToast(message, duration=2200){

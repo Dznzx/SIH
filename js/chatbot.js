@@ -50,10 +50,11 @@
     logEl.scrollTop = logEl.scrollHeight;
 
     try {
+      const liveContext = buildLiveContext(text);
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history: history.slice(0, -1) })
+        body: JSON.stringify({ message: text, history: history.slice(0, -1), liveContext })
       });
       const data = await res.json();
       typingRow.remove();
@@ -69,6 +70,53 @@
       sendBtn.disabled = false;
       inputEl.focus();
     }
+  }
+
+  // Grounds the assistant in real, live data instead of only the static
+  // knowledge base — this is what makes "check my reports" or "verify
+  // pothole Doranda" answerable instead of always "I don't have that
+  // information in this prototype". Built client-side (CIVIC.reports is
+  // already loaded here) and sent as extra context for api/chat.js's
+  // system prompt to use; never sent as ground truth the model must obey,
+  // just data it's allowed to summarize.
+  function summarizeReport(r){
+    const ward = (typeof wardInfo === 'function') ? wardInfo(r.ward).name : r.ward;
+    return `${r.id}: ${r.title} — ${r.category} in ${ward}, status ${r.status}, ${r.confirms} confirmation${r.confirms===1?'':'s'}${r.assignee ? ', assigned to '+r.assignee : ''}`;
+  }
+  function buildLiveContext(text){
+    if(typeof CIVIC === 'undefined' || !Array.isArray(CIVIC.reports)) return null;
+    const lower = text.toLowerCase();
+    const parts = [];
+
+    if(/\bmy reports?\b|\bmy issues?\b/.test(lower) && typeof myReports === 'function'){
+      const mine = myReports().filter(r => r.status !== 'queued').slice(0, 8);
+      parts.push(mine.length
+        ? `The signed-in user's own reports:\n${mine.map(summarizeReport).join('\n')}`
+        : `The signed-in user has no reports on file.`);
+    }
+
+    if(Array.isArray(CIVIC.wards)){
+      const wardHit = CIVIC.wards.find(w => lower.includes(w.name.toLowerCase()));
+      if(wardHit){
+        const matches = CIVIC.reports
+          .filter(r => r.ward === wardHit.id && r.status !== 'queued' && (typeof isPublicVisible !== 'function' || isPublicVisible(r)))
+          .slice(0, 8);
+        parts.push(matches.length
+          ? `Public reports in ${wardHit.name}:\n${matches.map(summarizeReport).join('\n')}`
+          : `No public reports currently on file for ${wardHit.name}.`);
+      }
+    }
+
+    const categories = ['pothole','garbage','streetlight','handpump','drainage'];
+    const catHit = categories.find(c => lower.includes(c));
+    if(catHit){
+      const matches = CIVIC.reports
+        .filter(r => r.category.toLowerCase() === catHit && r.status !== 'queued' && (typeof isPublicVisible !== 'function' || isPublicVisible(r)))
+        .slice(0, 8);
+      if(matches.length) parts.push(`Public ${catHit} reports:\n${matches.map(summarizeReport).join('\n')}`);
+    }
+
+    return parts.length ? parts.join('\n\n') : null;
   }
 
   function toggle(open){

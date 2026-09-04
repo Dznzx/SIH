@@ -95,9 +95,8 @@ function slaCountdownText(r){
   const ms = new Date(r.slaDeadline) - Date.now();
   return ms<=0 ? `BREACHED · ${formatDuration(-ms)} over` : `${formatDuration(ms)} left`;
 }
-function isEscalatedToChallenge(reportId){
-  return getExtraChallenges().some(c => c.sourceReportId === reportId);
-}
+// isEscalatedToChallenge() now lives in data.js (it reads the Supabase-
+// synced reportChallenges array, shared with the faculty review queue).
 function renderQueue(highlightId){
   queueList.innerHTML = '';
   const rows = CIVIC.reports
@@ -129,7 +128,14 @@ function renderQueue(highlightId){
           <button class="why">${tc('Why this rank?', 'यह रैंक क्यों?')}</button>
           <button class="assign${r.assignee ? ' done' : ''}" ${r.assignee ? 'disabled' : ''}>${r.assignee ? tc('Assigned ✓', 'सौंपा ✓') : tc('Assign', 'सौंपें')}</button>
           <button class="closeit">${tc('Close', 'बंद करें')}</button>
-          <button class="escalate-challenge${isEscalatedToChallenge(r.id) ? ' done' : ''}" ${isEscalatedToChallenge(r.id) ? 'disabled' : ''} title="Turn this into a university research challenge">${isEscalatedToChallenge(r.id) ? '🎓 In Team Builder ✓' : '🎓 Escalate to Challenge'}</button>
+          ${(()=>{
+            const st = challengeStatusForReport(r.id);
+            const label = st === 'approved' ? '🎓 In Team Builder ✓'
+              : st === 'pending_review' ? '🎓 Awaiting Faculty Review'
+              : st === 'rejected' ? '🎓 Rejected by Faculty'
+              : '🎓 Escalate to Challenge';
+            return `<button class="escalate-challenge${st ? ' done' : ''}" ${st ? 'disabled' : ''} title="Turn this into a university research challenge">${label}</button>`;
+          })()}
         </div>
         <div class="why-panel">${whyPanelHtml(r)}</div>`;
     }
@@ -344,12 +350,17 @@ queueList.addEventListener('click', (e)=>{
     resolvePhotoInput.click();
   }
   if(e.target.classList.contains('escalate-challenge') && !isEscalatedToChallenge(report.id)){
-    const challenge = createChallengeFromReport(report);
-    if(challenge){
-      pushNotification('🎓', `${report.id} escalated to Team Builder as a university challenge: "${challenge.title}"`);
-      showToast(`🎓 Created university challenge from ${report.id} — visible in Team Builder`, 4000);
+    e.target.disabled = true;
+    e.target.textContent = '🎓 Sending for review…';
+    createChallengeFromReport(report).then(challenge=>{
+      if(challenge){
+        pushNotification('🎓', `${report.id} escalated for faculty review: "${challenge.title}"`);
+        showToast(`🎓 Sent to faculty for review — will appear in Team Builder once approved`, 4500);
+      } else {
+        showToast('⚠️ Could not escalate this report — try again.', 4000);
+      }
       renderQueue();
-    }
+    });
   }
 });
 
