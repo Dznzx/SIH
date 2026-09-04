@@ -92,6 +92,33 @@ function hidePhotoWarning(){
   photoWarningEl.style.display = 'none';
 }
 
+// ---------- AI photo authenticity check (api/analyze-photo.js, Gemini) ----------
+// Real vision model check for whether this looks like a genuine photo of
+// the reported issue vs. a stock/downloaded/staged/unrelated image someone
+// is using to file a fake report. Runs alongside (not instead of) the
+// on-device MobileNet check above — that one is instant/offline/free and
+// catches the obvious cases (a photo of a pet, a person, etc.); this one
+// can actually judge authenticity, but needs a network round trip and a
+// configured GEMINI_API_KEY. If it's unavailable, the MobileNet check
+// already run in runPhotoAnalysis() is what the citizen sees — never
+// blocks submission either way.
+function runPhotoAuthenticityCheck(dataUrl){
+  fetch('/api/analyze-photo', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ imageDataUrl: dataUrl, category: catSelected })
+  })
+    .then(res => res.ok ? res.json() : null)
+    .then(data => {
+      if(dataUrl !== capturedPhotoData) return; // a newer photo replaced this one meanwhile
+      if(!data || !data.ok) return; // no key / offline / error — the local check already covered this photo
+      if(!data.authentic){
+        showPhotoWarning(data.message || `This photo doesn't look like a genuine capture of the issue (looks like: ${data.detectedSubject || 'something else'}). You can still submit, but a real, freshly-taken photo helps officials verify it faster.`);
+      }
+    })
+    .catch(()=>{ /* network failure — stay silent, local check already ran */ });
+}
+
 captureBox.addEventListener('click', ()=> photoInput.click());
 photoInput.addEventListener('change', ()=>{
   const file = photoInput.files[0];
@@ -109,6 +136,7 @@ photoInput.addEventListener('change', ()=>{
       captureBox.querySelector('.cam-label').textContent = t('photo_captured');
       checkReady();
       runPhotoAnalysis(capturedPhotoData);
+      runPhotoAuthenticityCheck(capturedPhotoData);
     });
   };
   reader.readAsDataURL(file);
